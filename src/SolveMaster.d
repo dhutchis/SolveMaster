@@ -68,6 +68,7 @@ if (isIntegral!(typeof(n)) && n >= 0) {
 
 template permute(A : T[L], T, size_t L) {
 	auto pure permute(in A arr) {
+		static assert (L > 0, "no 0-length static arrays allowed");
 		bool[L] used;
 		fill(used, false);
 		A form = void;
@@ -101,17 +102,54 @@ template permute(A : T[L], T, size_t L) {
 	}
 }
 template fill(T, size_t L) {
-	void fill(T[L] arr, T val) pure @safe { // memset for efficiency?
-		foreach (i; 0 .. L)
-			arr[i] = val;
+	void fill(T[L] arr, in T val) pure @safe { // memset for efficiency?
+		foreach (ref a; arr)
+			a = val;
 	}
 }
 
+/*template permute(A : T[], T) {
+	auto permute(in A arr) {
+		bool[] used; //used.length = arr.length;
+		//std.algorithm.fill(used, false);
+		A form; //form.length = arr.length;
+		A[] allperms; //allperms.length = factorial!(arr.length);
+		foreach (ref a; arr) { used ~= false; form ~= T.init; }
+		size_t permsCtr = 0;
+		doPermute(arr, used, 0u, form, allperms, permsCtr); writeln();
+		return allperms;
+	}
+	
+	private  void doPermute(
+		in A arr, 
+		bool[] used, 
+		in size_t pos, 
+		A form, 
+		A[] allperms, 
+		ref size_t permsCtr
+	) {
+		write("\nat ",pos," ");
+		foreach (i; 0 .. arr.length) {
+			if (used[i]) continue;
+			used[i] = true;
+			form[pos] = arr[i];
+			if (pos == arr.length-1) {
+				//write(form," ",allperms);
+				allperms ~= form.dup; // idup for immutable
+				permsCtr++;
+			}
+			else
+				doPermute(arr, used, pos+1, form, allperms, permsCtr);
+			used[i] = false; 
+		}
+	}
+}*/
+
 
 unittest {
-	enum int[1] t1 = [9];
+	enum int[1] t1 = [5];
 	enum t1res = permute(t1);
-	static assert(t1res == [[9]]);
+	static assert(t1res == [[5]]);
 	writeln(typeid(t1res), " ", typeid(t1res[0]), " ", typeid(t1res[0][0]),"\n", t1res);
 	
 	enum int[3] t2 = [0,1,2];
@@ -135,6 +173,11 @@ unittest {
 	writeln(t5res);
 	
 	static assert(is(typeof(factorial!3uL) : ulong));
+	
+	// dynamic arrays
+	/*enum t6 = [2,4];
+	const t6res = permute(t6);
+	writeln(t6res);*/
 }
 
 void main() {
