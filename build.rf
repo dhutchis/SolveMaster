@@ -1,8 +1,0 @@
--od"bin"
--of"bin\SolveMaster.exe"
-
--I""
-
-"src\SolveMaster.d"
-
--unittest
