@@ -1,3 +1,4 @@
+// see if we can get static array functionality via array-wise operators []
 import std.stdio;
 import std.c.process;
 import std.array;
@@ -18,6 +19,8 @@ enum Place PLACE_MIN = 0, PLACE_MAX = 3, NUM_PLACE = PLACE_MAX-PLACE_MIN+1;
 	enum MAX = 3;
 }*/
 alias Digit[4] Guess;
+alias Digit[NUM_DIGIT] Substitution;
+alias Place[NUM_PLACE] Permutation;
 alias Digit[2] Response;
 // alias function for transformation
 
@@ -68,7 +71,7 @@ if (isIntegral!(typeof(n)) && n >= 0) {
 		enum factorial = n*factorial!(n-1);
 }
 
-enum DEBUG_MSG = false;
+enum DEBUG_MSG = true;
 void dnoln(A...)(A a)
 if (is(typeof({write(a);}()))) {
 	static if(DEBUG_MSG) {
@@ -92,8 +95,8 @@ template permute(A : T[L], T, size_t L) {
 		A form = void;
 		A[factorial!L] allperms;
 		size_t permsCtr = 0;
-		doPermute(arr, used, 0u, form, allperms, permsCtr); d();
-		d("after ", allperms);
+		doPermute(arr, used, 0u, form, allperms, permsCtr); //d();
+//		d("after ", allperms);
 		return allperms;
 	}
 	
@@ -105,15 +108,15 @@ template permute(A : T[L], T, size_t L) {
 		ref A[factorial!L] allperms, 
 		ref size_t permsCtr
 	) {
-		dnoln("\nat ",pos," ");
+//		dnoln("\nat ",pos," ");
 		foreach (i; 0 .. L) {
 			if (used[i]) continue;
 			used[i] = true;
 			form[pos] = arr[i];
 			if (pos == L-1) {
-				dnoln(form," ",allperms,"; ");
+//				dnoln(form," ",allperms,"; ");
 				allperms[permsCtr] = form.idup; // idup for immutable
-				dnoln(form," ",allperms);
+//				dnoln(form," ",allperms);
 				permsCtr++;
 			}
 			else
@@ -230,37 +233,94 @@ unittest {
 //	writeln(t6res);
 }
 
-// are all the elements in this static array equal to some value?
-// can be generalized to take any unary function that takes a member val and returns a bool
-pure @safe bool allEqual(T, size_t L, B = staticArrayBaseType!(T[L]))
-						(in T[L] arr, in B val) {
+pure @safe bool allPassFun(alias op, T, size_t L, B = staticArrayBaseType!(T[L]))
+						(in T[L] arr) 
+						if (is(typeof(op(B)) == bool)) {
 	bool ret = true;
 	static if (isStaticArray!T) {
 		foreach(ref row; arr)
-			if (!(ret = allEqual(row,val),ret))
+			if (!(ret = allPassFun!op(row),ret))
 				break;
 	} else {
 		foreach(ref a; arr)
-			if (!(ret = a == val,ret))
+			if (!(ret = op(a),ret))
 				break;
 	}
 	return ret;
 }
+
+//// are all the elements in this static array equal to some value?
+//// can be generalized to take any unary function that takes a member val and returns a bool
+//pure @safe bool allPassFun(T, size_t L, B = staticArrayBaseType!(T[L]))
+//						(in T[L] arr, in B val) {
+//	bool ret = true;
+//	static if (isStaticArray!T) {
+//		foreach(ref row; arr)
+//			if (!(ret = allPassFun(row,val),ret))
+//				break;
+//	} else {
+//		foreach(ref a; arr)
+//			if (!(ret = a == val,ret))
+//				break;
+//	}
+//	return ret;
+//}
 unittest {
 	enum bool[2] b = [true,true];
-	static assert(allEqual(b,true));
-	static assert(!allEqual(b,false));
+	static assert(allPassFun!((x) {return x;})(b));
+	static assert(!allPassFun!((x) {return !x;})(b));
 	enum double[2][2] d = [[3.3, 3.4],[3.3,3.3]];
-	static assert(!allEqual(d,3.3));
+	static assert(!allPassFun!( (x) {return x == 3.3;} )(d));
+	static assert(allPassFun!( (x) {return x > 2;} )(d));
 }
 
 auto findTransform(in Guess p, in Guess q, in Guess[] pastGuesses)
 {
+	foreach (subst; validSubstitutionStream(p,q,pastGuesses)) {
+		auto psub = applySubstitution(p,subst);
+		auto perm = getPermMap(psub,q); assert(applyPermutation(psub,perm)==q);
+		d("p",p," =subst",subst,"=> ",psub," =perm",perm,"=> ",q);
+		// try the permutation on every past guess.  Success on all -> we found a transform = subst composed with perm
+		bool ret = true;
+		foreach (past; pastGuesses)
+//		if (allPassFun!( delegate bool(Guess pg) { return pg == applyPermutation(pg,perm); } )(pastGuesses)) // NOT Fully recursive
+			if (ret = past == applyPermutation(applySubstitution(past,subst),perm), d("\tperm takes ",past," => ",applyPermutation(applySubstitution(past,subst),perm)), !ret)
+				break;
+		if (ret)
+			return true;
+	}
+	return false; 
+}
+unittest {
+	Guess p = [0,1,2,4], q = [0,1,5,3];
+	Guess[] past = [[0,1,2,3]];
+	writeln(findTransform(p,q,past));
 	
-	
-	
-	
-	 
+}
+
+// takes 2 Guesses with the same digits, possible in a rearranged order, returns the permutation map to go from one to the other
+Permutation getPermMap(in Guess from, in Guess to) {
+	Permutation pm;
+	foreach (i, Digit din; from) {
+		pm[i] = cast(Place)countUntil(cast(Digit[])to, din);
+		assert(pm[i] != -1,"from ("~text(from)~")and to ("~text(to)~")should have the same Digit set");
+	}
+	return pm;
+}
+unittest {
+	enum Guess p = [0,1,3,5], q = [0,1,5,3];
+	static assert(getPermMap(p,q) == [0, 1, 3, 2]);
+}
+Guess applyPermutation(in Guess from, in Permutation perm) {
+	Guess o;
+	foreach(i, din; from)
+		o[perm[i]] = din;
+	return o;
+}
+unittest {
+	enum Guess g = [6,7,8,9];
+	enum Permutation perm = [0,1,3,2];
+	static assert(applyPermutation(g,perm) == [6,7,9,8]);
 }
 
 struct ValidSubstitutionStream
@@ -290,7 +350,7 @@ private:
 		
 		// mark the unrestricteddigits that can be substituted for anything as free
 		foreach (i, ref row; validSubst)
-			if (allEqual(row,true))
+			if (allPassFun!((x) {return x;})(row))
 				substMap[i] = -2;
 		
 		pos = DIGIT_MIN-1;
@@ -344,7 +404,7 @@ public:
         findNextSubst();
     }
 
-    @property Digit[NUM_DIGIT] front() {
+    @property Substitution front() {
         assert(!_empty);
         return substMap;
     }
@@ -378,6 +438,18 @@ unittest {
 	foreach (subst; validSubstitutionStream(p,q,past))
 		writeln(subst);
 }
+Guess applySubstitution(Guess g, Substitution subst) {
+	Guess o;
+	foreach(i, din; g)
+		o[i] = subst[din];
+	return o;
+}
+unittest {
+	enum Guess p = [0,1,2,4];
+	enum Substitution subst = [0, 1, 3, 2, 5, -2, -2, -2, -2, -2];
+	static assert(applySubstitution(p,subst) == [0, 1, 3, 5]);
+}
+
 /*
 auto findSubstitution(in Guess p, in Guess q, in Guess[] pastGuesses)
 {
@@ -395,9 +467,9 @@ auto findSubstitution(in Guess p, in Guess q, in Guess[] pastGuesses)
 	
 	// mark the unrestricteddigits that can be substituted for anything as free
 	foreach (i, ref row; validSubst)
-		if (allEqual(row,true)) {
+		if (allPassFun(row,true)) {
 			substMap[i] = -2;
-		} else if (allEqual(row,false)) {
+		} else if (allPassFun(row,false)) {
 			// no possible substitutition can work here
 			writeln("no possible subst");
 			return;
@@ -408,7 +480,8 @@ auto findSubstitution(in Guess p, in Guess q, in Guess[] pastGuesses)
 }*/
 void markInvalidSubsts(in Guess p, in Guess q, ref bool[NUM_DIGIT][NUM_DIGIT] validSubst) {
 	// digits in p can only go to digits in q
-	auto qsort = q.dup; qsort.sort;
+	auto qsort = q.dup; 
+	qsort.sort; // speedup y efficient sort?
 	foreach (Digit from; p)
 		foreach (Digit tonot; setDifference(ALL_DIGITS, qsort)) // speedup by static array impl.?
 			validSubst[from][tonot] = false;
