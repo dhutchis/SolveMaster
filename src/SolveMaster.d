@@ -263,6 +263,122 @@ auto findTransform(in Guess p, in Guess q, in Guess[] pastGuesses)
 	 
 }
 
+struct ValidSubstitutionStream
+{
+private:
+//    alias T[L] A;
+//    const A p;
+//    const A q;
+//    const A[] pastGuesses;
+    
+    bool[NUM_DIGIT][NUM_DIGIT] validSubst; //validSubst[2][4]==true means 2->4 is a valid mapping
+	Digit[NUM_DIGIT] substMap; // the actual mapping; substMap[2]==4 means 2 maps to 4
+	bool[NUM_DIGIT] used; // signifies whether we already used the number in a previous substitution
+	Digit pos = DIGIT_MIN-1;
+	
+	bool _empty = false;
+		
+	void doInit(in Guess p, in Guess q, in Guess[] pastGuesses) {
+		fill(validSubst, true);
+		fill(substMap, cast(Digit)(DIGIT_MIN-1));    // -2 implies free (can map to any other free var)
+		fill(used, false);
+		
+		// setup validSubst -- mark substitutions which cannot occur as impossible
+		markInvalidSubsts(p,q,validSubst);
+		foreach (ref g; pastGuesses)
+			markInvalidSubsts(g,g,validSubst);
+		
+		// mark the unrestricteddigits that can be substituted for anything as free
+		foreach (i, ref row; validSubst)
+			if (allEqual(row,true))
+				substMap[i] = -2;
+		
+		pos = DIGIT_MIN-1;
+		_empty = false;
+	}
+
+    void findNextSubst()
+    {
+    	if (_empty) return;
+    	bool direc = true; // going forward
+		if (pos > DIGIT_MAX) direc = false; // going backward
+		
+    	posloop: while (direc ? pos++ : pos--, DIGIT_MIN <= pos && pos <= DIGIT_MAX) {
+	    	// find valid choices for this position
+			if (substMap[pos] == -2) // free variable
+				continue;
+			if (!direc) 
+				used[substMap[pos]] = false;
+			foreach (Digit i; cast(Digit)(substMap[pos]+1) .. cast(Digit)(DIGIT_MAX+1)) {
+				if (used[i]) continue; // digit already used
+				if (!validSubst[pos][i]) continue; // not a valid substitution
+				// we have a valid substitution of pos -> i
+				used[i] = true;
+				substMap[pos] = i;
+				direc = true;
+				continue posloop;
+			}
+			// exhausted possibilities for this pos
+//			used[pos] = false;
+			substMap[pos] = cast(Digit)(DIGIT_MIN-1);
+			direc = false;
+			
+		}        
+		if (pos < DIGIT_MIN) // no more possible substitutions
+			_empty = true;
+		// pos > DIGIT_MAX means we have a valid substitution in substMap
+    }
+
+public:
+    this(in Guess p, in Guess q, in Guess[] pastGuesses)
+    {
+//        this.p = p;
+//        this.q = q;
+//        this.pastGuesses = pastGuesses;
+        doInit(p,q,pastGuesses);
+        // prime: find first substitution
+        popFront();
+    }
+
+    void popFront() {
+        findNextSubst();
+    }
+
+    @property Digit[NUM_DIGIT] front() {
+        assert(!_empty);
+        return substMap;
+    }
+
+    @property typeof(this) save()
+    {
+        auto ret = this;
+//        assert(ret.p == p);
+//        assert(ret.q == q);
+//        assert(ret.pastGuesses == pastGuesses);
+	    ret.validSubst = validSubst.dup;
+	    ret.substMap = substMap.dup; 
+	    ret.used = used.dup;
+		assert(pos == ret.pos);
+		assert(ret._empty == _empty);
+        return ret;
+    }
+
+    @property bool empty() { return _empty; }
+    
+    unittest {
+    	//static assert (is(bool[NUM_DIGIT][NUM_DIGIT] == bool[L][L]));  // make more generic when this fails
+    }
+}
+auto validSubstitutionStream(in Guess p, in Guess q, in Guess[] pastGuesses) {
+	return ValidSubstitutionStream(p,q,pastGuesses);
+}
+unittest {
+	Guess p = [0,1,2,4], q = [0,1,5,3];
+	Guess[] past = [[0,1,2,3]];
+	foreach (subst; validSubstitutionStream(p,q,past))
+		writeln(subst);
+}
+/*
 auto findSubstitution(in Guess p, in Guess q, in Guess[] pastGuesses)
 {
 	bool[NUM_DIGIT][NUM_DIGIT] validSubst; //validSubst[2][4]==true means 2->4 is a valid mapping
@@ -279,12 +395,17 @@ auto findSubstitution(in Guess p, in Guess q, in Guess[] pastGuesses)
 	
 	// mark the unrestricteddigits that can be substituted for anything as free
 	foreach (i, ref row; validSubst)
-		if (allEqual(row,true))
+		if (allEqual(row,true)) {
 			substMap[i] = -2;
+		} else if (allEqual(row,false)) {
+			// no possible substitutition can work here
+			writeln("no possible subst");
+			return;
+		}
 	
 	findSubstitution_Impl(p,q,pastGuesses,validSubst,substMap,used,DIGIT_MIN);
 	
-}
+}*/
 void markInvalidSubsts(in Guess p, in Guess q, ref bool[NUM_DIGIT][NUM_DIGIT] validSubst) {
 	// digits in p can only go to digits in q
 	auto qsort = q.dup; qsort.sort;
@@ -318,7 +439,7 @@ unittest {
 mixin template DPROP() {
 	void dprop(string a)() { writeln(a,":",typeid(mixin(a)),":",mixin(a)); }
 }
-
+/*
 void findSubstitution_Impl(
 	in Guess p, 
 	in Guess q,
@@ -331,6 +452,7 @@ void findSubstitution_Impl(
 	if (pos > DIGIT_MAX) { // speedup: do arms-length recursion
 		// we're done; passed all the digits
 		// YIELD substMap
+		writeln("subst: ",substMap);
 	}
 	// find valid choices for this position
 	if (substMap[pos] == -2) { // free variable
@@ -346,7 +468,7 @@ void findSubstitution_Impl(
 			used[i] = false;
 		}
 	}
-}
+}*/
 
 void main() {
 	writeln("hi");
