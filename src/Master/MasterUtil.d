@@ -1,3 +1,4 @@
+module Master.MasterUtil;
 // see if we can get static array functionality via array-wise operators []
 import std.stdio;
 import std.c.process;
@@ -7,6 +8,7 @@ import std.conv;
 import std.algorithm;
 import std.traits;
 import std.range;
+//import std.typecons;
 
 alias byte Digit; // 0-9
 enum Digit DIGIT_MIN = 0, DIGIT_MAX = 9, NUM_DIGIT = DIGIT_MAX-DIGIT_MIN+1;
@@ -21,8 +23,38 @@ enum Place PLACE_MIN = 0, PLACE_MAX = 3, NUM_PLACE = PLACE_MAX-PLACE_MIN+1;
 alias Digit[4] Guess;
 alias Digit[NUM_DIGIT] Substitution;
 alias Place[NUM_PLACE] Permutation;
-alias Digit[2] Response;
+alias byte[2] Response;
+//alias Tuple!(Guess,Response) GuessResponse;
+//alias GuessResponse[] History;
+alias Guess[] GuessHistory;
+alias Response[] ResponseHistory;
 // alias function for transformation
+alias Guess[][14] PartitionSet;
+
+//Response createResponse(
+
+// todo build lookup table at compile time
+int responseToPartitionIndex(Response r) {
+	switch(r[0]) {
+		case 0: return r[1];
+		case 1: return 5+r[1];
+		case 2: return 9+r[1];
+		case 3: assert(r[1] == 0); return 12;
+		case 4: assert(r[1] == 0); return 13;
+		default: assert(false,"invalid reponse: "~text(r));
+	}
+}
+
+string guessToString(Guess g) {
+	string s;
+	foreach(d; g)
+		s ~= text(d);
+	return s;
+}
+string responseToString(Response r) {
+	return text(r[0])~"."~text(r[1]);
+}
+
 
 auto findTransform(in Guess p, in Guess q, in Response[Guess] history)
 {
@@ -71,7 +103,7 @@ if (isIntegral!(typeof(n)) && n >= 0) {
 		enum factorial = n*factorial!(n-1);
 }
 
-enum DEBUG_MSG = true;
+enum DEBUG_MSG = false;
 void dnoln(A...)(A a)
 if (is(typeof({write(a);}()))) {
 	static if(DEBUG_MSG) {
@@ -278,23 +310,26 @@ auto findTransform(in Guess p, in Guess q, in Guess[] pastGuesses)
 {
 	foreach (subst; validSubstitutionStream(p,q,pastGuesses)) {
 		auto psub = applySubstitution(p,subst);
-		auto perm = getPermMap(psub,q); assert(applyPermutation(psub,perm)==q);
+		auto perm = getPermMap(psub,q); 
 		d("p",p," =subst",subst,"=> ",psub," =perm",perm,"=> ",q);
+		assert(applyPermutation(psub,perm)==q);
 		// try the permutation on every past guess.  Success on all -> we found a transform = subst composed with perm
 		bool ret = true;
-		foreach (past; pastGuesses)
+		foreach (const Guess past; pastGuesses) {
 //		if (allPassFun!( delegate bool(Guess pg) { return pg == applyPermutation(pg,perm); } )(pastGuesses)) // NOT Fully recursive
 			if (ret = past == applyPermutation(applySubstitution(past,subst),perm), d("\tperm takes ",past," => ",applyPermutation(applySubstitution(past,subst),perm)), !ret)
 				break;
+		}
 		if (ret)
 			return true;
 	}
 	return false; 
 }
 unittest {
-	Guess p = [0,1,2,4], q = [0,1,5,3];
-	Guess[] past = [[0,1,2,3]];
-	writeln(findTransform(p,q,past));
+	enum Guess p = [0,1,2,4], q = [0,1,5,3];
+	enum Guess[] past = [[0,1,2,3]];
+	 assert(findTransform(p,q,past));
+//	writeln(findTransform(p,q,past));
 	
 }
 
@@ -435,8 +470,8 @@ auto validSubstitutionStream(in Guess p, in Guess q, in Guess[] pastGuesses) {
 unittest {
 	Guess p = [0,1,2,4], q = [0,1,5,3];
 	Guess[] past = [[0,1,2,3]];
-	foreach (subst; validSubstitutionStream(p,q,past))
-		writeln(subst);
+//	foreach (subst; validSubstitutionStream(p,q,past))
+//		writeln(subst);
 }
 Guess applySubstitution(Guess g, Substitution subst) {
 	Guess o;
@@ -478,16 +513,20 @@ auto findSubstitution(in Guess p, in Guess q, in Guess[] pastGuesses)
 	findSubstitution_Impl(p,q,pastGuesses,validSubst,substMap,used,DIGIT_MIN);
 	
 }*/
+auto mySetDifference(T,size_t L)(in T[] univ, in T[L] toRem) {
+//	foreach (
+}
 void markInvalidSubsts(in Guess p, in Guess q, ref bool[NUM_DIGIT][NUM_DIGIT] validSubst) {
 	// digits in p can only go to digits in q
 	auto qsort = q.dup; 
-	qsort.sort; // speedup y efficient sort?
+//	qsort.sort; // speedup y efficient sort?
+	sort(qsort);
 	foreach (Digit from; p)
 		foreach (Digit tonot; setDifference(ALL_DIGITS, qsort)) // speedup by static array impl.?
 			validSubst[from][tonot] = false;
 }
 unittest {
-	mixin DPROP;
+	//mixin DPROP;
 	//void dprop(string a)() { writeln(a,":",typeid(mixin(a)),":",mixin(a)); }
 	
 	Guess p = [0,1,2,4], q = [0,1,5,3];
@@ -543,6 +582,138 @@ void findSubstitution_Impl(
 	}
 }*/
 
-void main() {
-	writeln("hi");
+struct AllGuessesGenerator {
+private:
+    Guess cur = [0,1,2,3];
+    bool[NUM_DIGIT] used = [true,true,true,true,false,false,false,false,false,false];
+    Place pos;
+	bool _empty = false;
+
+	Digit getFirstAvailDigPast(in Digit start) {
+		Digit p = cast(Digit)(start+1);
+		while (p <= DIGIT_MAX && used[p])
+			p++;
+		return p ;//> DIGIT_MAX ? getFirstAvailDigPast(DIGIT_MIN-1) : p;
+	}
+
+public:
+	// just default constructor
+	
+    void popFront() {
+    	assert(!_empty);
+    	pos = PLACE_MAX;
+    	Digit nd;
+    	do {
+    		used[cur[pos]] = false;
+    		nd = getFirstAvailDigPast(cur[pos]);
+    		pos--;
+		} while (pos >= PLACE_MIN && nd > DIGIT_MAX);
+    	pos++;
+    	if (nd > DIGIT_MAX) {
+        	_empty = true;
+        	return;
+        }
+    	cur[pos] = nd;
+    	used[nd] = true;
+    	while (++pos <= PLACE_MAX) {
+    		cur[pos] = getFirstAvailDigPast(DIGIT_MIN-1);
+    		used[cur[pos]] = true;
+    	}
+    	
+    }
+
+    @property Guess front() {
+        assert(!_empty);
+        return cur;
+    }
+
+    @property typeof(this) save() {
+        auto ret = this;
+	    ret.cur = cur.dup;
+	    assert(pos == ret.pos);
+		assert(ret._empty == _empty);
+        return ret;
+    }
+
+    @property bool empty() { return _empty; }
+    
+    unittest {
+    	//static assert(equal(AllGuessesGenerator(),mixin(import("testperms.txt"))));
+//    	foreach(g; AllGuessesGenerator())
+//    		write(g,",");
+//		writeln();
+    }
 }
+
+Guess[] computeRepresentativeGuesses(in Guess[] past) {
+	Guess[] reprGuesses = past.dup; // past guesses are always representative
+	foreach (g; AllGuessesGenerator()) {
+		bool equiv = false;
+		foreach (reprG; reprGuesses) {
+			if (equiv = findTransform(g,reprG,past),equiv)
+				break;
+		}
+		if (!equiv) { // g is not equivalent to any guess already in reprGuesses
+			reprGuesses ~= g;
+		}
+	}
+	// now eliminate the past guesses
+	return reprGuesses[past.length .. $];
+}
+unittest {
+	enum Guess[] nopast = { Guess[] g; return g;}(); 
+//	 assert (computeRepresentativeGuesses(nopast) == [[0,1,2,3]]);
+//	enum Guess[] afterfirst = [[0,1,2,3]];
+//     Guess[] reprGuess2nd = computeRepresentativeGuesses(afterfirst);
+//    assert (reprGuess2nd.length == 19);
+}
+
+//Guess[] computeSecondTurnReprGuesses() {
+//	return computeRepresentativeGuesses([[0,1,2,3]]);
+//}
+
+Response doCompare(Guess a, Guess b) {
+	Response r = [0,0];
+	foreach (i, d; a) {
+		if (b[i] == d)
+			r[0]++;
+		else
+			foreach (j, d2; b)
+				if (i != j && d == d2) {
+					r[1]++;
+					break;
+				}
+	}
+	return r;
+}
+unittest {
+	enum Guess g1 = [0,1,2,3],
+ 		g2 = [0,1,2,4],
+ 		g3 = [1,0,2,4],
+ 		g4 = [6,7,8,9];
+	static assert(doCompare(g1,g1) == [4,0]);
+	static assert(doCompare(g1,g2) == [3,0]);
+	static assert(doCompare(g1,g3) == [1,2]);
+	static assert(doCompare(g1,g4) == [0,0]);
+}
+
+/// is g still consistent after receiving feedback f(x,T)=r?
+/// if so, then f(x,g)==r too
+bool testConsistent(Guess g, Guess x, Response r) {
+	return doCompare(x,g) == r;
+}
+//
+//void main() {
+////	Guess[] past = [[0,1,2,3],[0, 1, 2, 4]];
+////	writeln("past: ",past);
+////	auto reprGuesses = computeRepresentativeGuesses(past);
+////	writeln(reprGuesses.length,":");
+////	foreach(i, rg; reprGuesses)
+////		write(rg,",");
+//	
+//	
+//	
+//}
+
+enum Response[] AllResponses = [[0,0],[0,1],[0,2],[0,3],[0,4],[1,0],[1,1],[1,2],[1,3],[2,0],[2,1],[2,2],[3,0]];
+ 

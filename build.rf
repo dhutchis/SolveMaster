@@ -3,6 +3,10 @@
 
 -I""
 
-"src\SolveMaster.d"
+"src\Master\Main.d"
+"src\Master\MasterGame.d"
+"src\Master\MasterPlayer.d"
+"src\Master\MasterUtil.d"
 
 -unittest
+-w
