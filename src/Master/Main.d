@@ -13,6 +13,6 @@ import Master.MasterGame;
 import Master.MasterPlayer;
 
 void main() {
-	playGame(new MasterGame());
+	//playGame(new MasterGame());
 	
 }

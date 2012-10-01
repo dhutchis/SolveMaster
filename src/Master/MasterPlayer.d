@@ -69,7 +69,7 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 		}
 		
 		// should we stop evaluating guesses return the best right now?
-		if (shouldStopEvaluatingGuesses(bestGuess,bestEntropy,bestNonemptyParts, consisT.length-i)) {
+		if (shouldStopEvaluatingGuesses(bestGuess,bestEntropy,bestNonemptyParts, consisT.length-i, bestGuessPartitionSet, consisT)) {
 			write("stopped evaluating guesses early; ");
 			break;
 		}
@@ -136,8 +136,24 @@ bool shouldUpdateBestGuess(in Guess bestGuess, in double bestEntropy, in int bes
 }
 
 // Return true if this guess is so good that we should stop evaluating representative guesses and choose this one as the best
-bool shouldStopEvaluatingGuesses(in Guess bestGuess, in double bestEntropy, in int bestNonemptyParts, in int numGuessesRemaining) {
-	return bestNonemptyParts == 14;
+bool shouldStopEvaluatingGuesses(in Guess bestGuess, in double bestEntropy, in int bestNonemptyParts, in int numGuessesRemaining, 
+			in PartitionSet bestGuessPartitionSet, in Guess[] consisT) {
+	// Actually, there might be a guess with better entropy than this one and max # of nonempty parts too
+//	// We have the maximum # of splits - choose the guess right away
+//	if (bestNonemptyParts == 14)
+//		return true;
+	
+	// if we find a guess that divides consisT into partitions of all size 1, it's clearly the winner.  We will win next turn (and maybe this one).
+	// only possible if consisT.length is <= 14
+	if (consisT.length <= 14) {
+		bool ret = true;
+		foreach(partition; bestGuessPartitionSet)
+			if (ret = partition.length == 1, !ret)
+				break;
+		return ret;
+	}
+	
+	return false;
 }
 
 bool shouldConsiderGuess(in Guess rg, in Guess bestGuess,in double bestEntropy,in int bestNonemptyParts, in PartitionSet bestPs, in Guess[] consisT) {

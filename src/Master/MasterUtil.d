@@ -31,7 +31,6 @@ alias Response[] ResponseHistory;
 // alias function for transformation
 alias Guess[][14] PartitionSet;
 
-//Response createResponse(
 
 // todo build lookup table at compile time
 int responseToPartitionIndex(Response r) {
@@ -103,7 +102,7 @@ if (isIntegral!(typeof(n)) && n >= 0) {
 		enum factorial = n*factorial!(n-1);
 }
 
-enum DEBUG_MSG = false;
+enum DEBUG_MSG = true;
 void dnoln(A...)(A a)
 if (is(typeof({write(a);}()))) {
 	static if(DEBUG_MSG) {
@@ -311,13 +310,13 @@ auto findTransform(in Guess p, in Guess q, in Guess[] pastGuesses)
 	foreach (subst; validSubstitutionStream(p,q,pastGuesses)) {
 		auto psub = applySubstitution(p,subst);
 		auto perm = getPermMap(psub,q); 
-		d("p",p," =subst",subst,"=> ",psub," =perm",perm,"=> ",q);
+//		d("p",p," =subst",subst,"=> ",psub," =perm",perm,"=> ",q);
 		assert(applyPermutation(psub,perm)==q);
 		// try the permutation on every past guess.  Success on all -> we found a transform = subst composed with perm
 		bool ret = true;
 		foreach (const Guess past; pastGuesses) {
 //		if (allPassFun!( delegate bool(Guess pg) { return pg == applyPermutation(pg,perm); } )(pastGuesses)) // NOT Fully recursive
-			if (ret = past == applyPermutation(applySubstitution(past,subst),perm), d("\tperm takes ",past," => ",applyPermutation(applySubstitution(past,subst),perm)), !ret)
+			if (ret = past == applyPermutation(applySubstitution(past,subst),perm), /*d("\tperm takes ",past," => ",applyPermutation(applySubstitution(past,subst),perm)),*/ !ret)
 				break;
 		}
 		if (ret)
@@ -662,10 +661,23 @@ Guess[] computeRepresentativeGuesses(in Guess[] past) {
 }
 unittest {
 	enum Guess[] nopast = { Guess[] g; return g;}(); 
-//	 assert (computeRepresentativeGuesses(nopast) == [[0,1,2,3]]);
-//	enum Guess[] afterfirst = [[0,1,2,3]];
-//     Guess[] reprGuess2nd = computeRepresentativeGuesses(afterfirst);
-//    assert (reprGuess2nd.length == 19);
+	 assert (computeRepresentativeGuesses(nopast) == [[0,1,2,3]]);
+	enum Guess[] afterfirst = [[0,1,2,3]];
+     Guess[] reprGuess2nd = computeRepresentativeGuesses(afterfirst);
+    assert (reprGuess2nd.length == 19);
+    
+    Guess[][] reprGuess3rd;
+    reprGuess3rd.length = reprGuess2nd.length;
+    uint total_rg = 0;
+    foreach (i, g; reprGuess2nd) {
+    	dnoln(afterfirst~g);
+    	reprGuess3rd[i] = computeRepresentativeGuesses(afterfirst~g);
+    	total_rg += reprGuess3rd[i].length;
+    	d(" has ",reprGuess3rd[i].length," repr guesses: ");//,reprGuess3rd[i]);
+    }
+    d("Total 3rd level repr. guesses: ",total_rg);
+    d("Average (/",reprGuess2nd.length,") = ",cast(double)(total_rg)/reprGuess2nd.length);
+    assert(reprGuess3rd.length == reprGuess2nd.length);
 }
 
 //Guess[] computeSecondTurnReprGuesses() {
