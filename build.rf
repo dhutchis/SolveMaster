@@ -6,6 +6,7 @@
 "src\Master\Main.d"
 "src\Master\MasterGame.d"
 "src\Master\MasterPlayer.d"
+"src\Master\MasterSpecific.d"
 "src\Master\MasterUtil.d"
 
 -unittest

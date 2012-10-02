@@ -10,6 +10,7 @@ import std.range;
 import std.random;
 
 import Master.MasterUtil;
+import Master.MasterSpecific;
 
 Guess generateRandomGuess() {
 	return cast(Guess)[uniform(DIGIT_MIN,DIGIT_MAX+1),uniform(DIGIT_MIN,DIGIT_MAX+1),uniform(DIGIT_MIN,DIGIT_MAX+1),uniform(DIGIT_MIN,DIGIT_MAX+1)];

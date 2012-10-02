@@ -12,7 +12,7 @@ import std.math: log;
 
 import Master.MasterGame;
 import Master.MasterUtil;
-
+import Master.MasterSpecific;
 
 
 void playGame(MasterGame mg) {
@@ -61,7 +61,11 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 	int bestNonemptyParts=0;
 	
 	// only evaluate the representative guesses - this gets expensive after turn 3
-	Guess[] reprGuesses = computeRepresentativeGuesses(pastGuesses);
+	Guess[] reprGuesses;
+	if (pastGuesses.length <= 3)
+		reprGuesses = computeRepresentativeGuesses(pastGuesses, pastResponses); // pass response information available at runtime for reduction in reprGuesses size
+	else
+		reprGuesses = computeGuessesToTry(pastGuesses, pastResponses, consisT);
 	foreach (i, rg; reprGuesses) {
 		// should we even consider this guess? (alpha/beta pruning)
 		if (!shouldConsiderGuess(rg, bestGuess,bestEntropy,bestNonemptyParts,bestGuessPartitionSet,consisT)) {
@@ -91,6 +95,81 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 	writeln("CHOSEN GUESS: ",guessToString(bestGuess)," entropy=",bestEntropy,"; nonemptyParts=",bestNonemptyParts);
 	
 	return bestGuess;
+}
+
+/// Use this after it becomes computationally expensive to calculate the minimal set of representative guesses
+/// Try to eliminate as many guesses that provide duplicate information as another guess
+///		(and guesses that will get pruned later anyway because they won't parition consisT best)
+Guess[] computeGuessesToTry(in GuessHistory pastGuesses, in ResponseHistory pastResponses, in Guess[] consisT) {
+	Guess[] guessesToTry;
+	bool[NUM_DIGIT] absentDigits = getAbsentDigits(pastGuesses, pastResponses), // future: track these in the state of the problem
+		uncalledDigits = getUncalledDigits(pastGuesses);
+	Digit[NUM_PLACE] lowestUncalledDigits = getLowestSortedUncalledDigits(uncalledDigits);
+	
+	guessGenLoop: foreach (g; AllGuessesGenerator()) {
+		if (canFind(pastGuesses, g)) // don't include a past guess
+			continue;
+		
+		// forward digit-by-digit analysis of g
+		byte numUncalledDigits = 0;
+		foreach(d; g) {
+			// if we got a 0.0 response on this digit, don't include it
+			if (absentDigits[d])
+				continue guessGenLoop;
+			// if we have an uncalled digit and it's not the first representative, don't include it
+			// first representative specifies uncalled digits in strictly ascending order
+			//   ex. if [5,6,7,8,9] uncalled, [3,7,2,5] can be replaced with [3,5,2,6] without loss of information
+			if (uncalledDigits[d]) {
+				if (d != lowestUncalledDigits[numUncalledDigits])
+					continue guessGenLoop;
+				else
+					numUncalledDigits++;
+			}
+			
+		}
+		
+		// all tests pass, we'll try this guess
+		guessesToTry ~= g;
+	}
+	return guessesToTry; 
+}
+
+/// An absent digit is one from a guess with response 0.0 - no point in trying them
+bool[NUM_DIGIT] getAbsentDigits(in GuessHistory pastGuesses, in ResponseHistory pastResponses) {
+	bool[NUM_DIGIT] absentDigits; // all false
+	foreach (i, r; pastResponses)
+		if (r == [0,0])
+			foreach(d; pastGuesses[i])
+				absentDigits[d] = true;
+	return absentDigits;
+}
+
+/// An uncalled digit is a digit that has not been in any guess yet
+bool[NUM_DIGIT] getUncalledDigits(in GuessHistory pastGuesses) {
+	bool[NUM_DIGIT] uncalledDigits;
+	fill(uncalledDigits,true);
+	foreach(g; pastGuesses)
+		foreach(d; g)
+			uncalledDigits[d] = false;
+	return uncalledDigits;
+}
+
+/// The 4 lowest uncalled digits in ascending order, such as [4, 7, 8, 9]
+Digit[NUM_PLACE] getLowestSortedUncalledDigits(bool[NUM_DIGIT] uncalledDigits) {
+	Digit[NUM_PLACE] lud;
+	int num = 0;
+	foreach(byte i, b; uncalledDigits)
+		if (b) {
+			lud[num] = i;
+			num++;
+			if (num >= lud.length)
+				return lud;
+		}
+	while (num < lud.length) {
+		lud[num] = -1;
+		num++;
+	}
+	return lud;
 }
 
 /// creates the PartitionSet dividing consisT as a result of guessing rg

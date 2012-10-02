@@ -37,3 +37,8 @@ Guess[] past = [[0,1,2,3]];
 Total 3rd level repr. guesses: 7072
 Average (/19) = 372.21052631578947368421052631579
 
+GuessHistory gh = [[0,1,2,3],[1,2,3,4]];
+ResponseHistory rh = [[0,1],[0,1]];
+rg_noinfo: 499
+rg_info: 258
+Great reduction in representative guess size!

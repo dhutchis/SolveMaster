@@ -10,6 +10,8 @@ import std.traits;
 import std.range;
 //import std.typecons;
 
+import Master.MasterSpecific;
+
 alias byte Digit; // 0-9
 enum Digit DIGIT_MIN = 0, DIGIT_MAX = 9, NUM_DIGIT = DIGIT_MAX-DIGIT_MIN+1;
 enum Digit[] ALL_DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -305,14 +307,27 @@ unittest {
 	static assert(allPassFun!( (x) {return x > 2;} )(d));
 }
 
-auto findTransform(in Guess p, in Guess q, in Guess[] pastGuesses)
+/// Evaluates op on each member of arr, returning the index of the first one that returns true, or -1 on all false
+pure @safe int findFirstMatch(alias op, T, size_t L)(in T[L] arr)
+if (is(typeof(op(T)) == bool))  {
+	foreach (i, a; arr)
+		if (op(a))
+			return i;
+	return -1;
+} 
+
+/// Try to find a transformation f such that f(p)==q and foreach(g; pastGuesses) f(g)==g
+///	f can involve a substitution and a permutation of Digits
+/// If f exists, p and q are in the same representative class -- guessing p will produce the same parition splits as guessing q
+bool findTransform(in Guess p, in Guess q, in GuessHistory pastGuesses)
 {
 	foreach (subst; validSubstitutionStream(p,q,pastGuesses)) {
 		auto psub = applySubstitution(p,subst);
 		auto perm = getPermMap(psub,q); 
 //		d("p",p," =subst",subst,"=> ",psub," =perm",perm,"=> ",q);
-		assert(applyPermutation(psub,perm)==q);
-		// try the permutation on every past guess.  Success on all -> we found a transform = subst composed with perm
+		assert(applyPermutation(psub,perm)==q); // transformation p->q guranteed to exist
+												// the transformation also taking each pastGuess to itself is not guranteed
+		// try the permutation on every past guess.  Success on all means we found a transform: subst composed with perm
 		bool ret = true;
 		foreach (const Guess past; pastGuesses) {
 //		if (allPassFun!( delegate bool(Guess pg) { return pg == applyPermutation(pg,perm); } )(pastGuesses)) // NOT Fully recursive
@@ -329,8 +344,91 @@ unittest {
 	enum Guess[] past = [[0,1,2,3]];
 	 assert(findTransform(p,q,past));
 //	writeln(findTransform(p,q,past));
-	
 }
+
+GuessHistory[] groupPastGuessesBySameResponse(in GuessHistory pastGuesses, in ResponseHistory pastResponses) 
+in { assert(pastGuesses.length == pastResponses.length); } 
+body {
+	GuessHistory[] groups;
+	bool[] seen; // keeps track of responses already grouped
+	foreach (i, r; pastResponses) {
+		if (!seen.empty) {
+			bool front = seen.front;
+			seen.popFront();
+			if (front) continue;
+		}
+		GuessHistory group = [pastGuesses[i]];
+		foreach (j; i+1 .. pastResponses.length) {
+//			d("i:",i," j:",j," seen:",seen);
+			if ((j-i > seen.length || !seen[j-i-1]) && pastResponses[j] == r) { 
+				group ~= pastGuesses[j];
+				seen.length = max(seen.length, j-i); // extends with false
+				seen[j-i-1] = true;
+			}
+		}
+		groups ~= group;
+		
+	}
+	return groups;
+}
+unittest {
+	GuessHistory gh1 = [[0,1,2,3],[1,2,3,4]];
+	ResponseHistory rh1 = [[0,1], [0,1]];
+	assert(groupPastGuessesBySameResponse(gh1,rh1) == [[[0, 1, 2, 3], [1, 2, 3, 4]]]);
+	GuessHistory gh2 = [[0,1,2,3], [2,3,4,5], [1,2,3,4]];
+	ResponseHistory rh2 = [[0,1], [1,0], [0,1]];
+	assert(groupPastGuessesBySameResponse(gh2,rh2) == [[[0, 1, 2, 3], [1, 2, 3, 4]], [[2, 3, 4, 5]]]);
+	ResponseHistory rh3 = [[0,1], [0,1], [0,1]];
+	assert(groupPastGuessesBySameResponse(gh2,rh3) == [[[0, 1, 2, 3], [2, 3, 4, 5], [1, 2, 3, 4]]]);
+	ResponseHistory rh4 = [[0,1], [0,1], [1,0]];
+	assert(groupPastGuessesBySameResponse(gh2,rh4) == [[[0, 1, 2, 3], [2, 3, 4, 5]], [[1, 2, 3, 4]]]);
+	assert(groupPastGuessesBySameResponse([],[]) == []);
+}
+
+/// This version of findTransform takes additional information -- the responses at runtime!
+/// By Lemma 11 [Slovesnov], we can group pastGuesses into sets that share the same response
+/// transformation f only needs to take a group to itself, not each individual past guess to itself
+/// Could help in turn 3 if we get the same response in turns 1 and 2
+bool findTransform(in Guess p, in Guess q, in GuessHistory[] pastGuessSets) {
+	//const GuessHistory[] pastGuessSets = groupPastGuessesBySameResponse(pastGuesses, pastResponses);
+	
+	foreach (subst; validSubstitutionStream(p,q,pastGuessSets)) {
+		auto psub = applySubstitution(p,subst);
+		auto perm = getPermMap(psub,q); 
+//		d("p",p," =subst",subst,"=> ",psub," =perm",perm,"=> ",q);
+		assert(applyPermutation(psub,perm)==q); // transformation p->q guranteed to exist
+												// the transformation also taking each pastGuess to itself is not guranteed
+		// try the permutation on every past guess.  Success on all means we found a transform: subst composed with perm
+		bool ret = true;
+		tryThisTrans: foreach (const GuessHistory pastGuessSet; pastGuessSets) {
+			GuessHistory newHistory;
+			foreach (const Guess past; pastGuessSet)
+				newHistory ~= applyPermutation(applySubstitution(past,subst),perm);
+			foreach (const Guess past; pastGuessSet)
+				if (ret = canFind(newHistory, past), !ret)
+					break tryThisTrans;
+		}
+		if (ret)
+			return true;
+	}
+	return false; 
+}
+unittest {
+	/// Finds transformations that are valid only by using additional response information  
+	GuessHistory gh1 = [[0,1,2,3],[1,2,3,4]];
+	ResponseHistory rh1 = [[0,1], [0,1]];
+	GuessHistory[] gg = groupPastGuessesBySameResponse(gh1, rh1);
+	Guess p = [0,1,2,5];
+	uint count = 0;
+	foreach (q; AllGuessesGenerator()) {
+		if (!findTransform(p,q,gh1) && findTransform(p,q,gg)) {
+			d(q);
+			count++;
+		}
+	}
+	d(count);
+}
+
 
 // takes 2 Guesses with the same digits, possible in a rearranged order, returns the permutation map to go from one to the other
 Permutation getPermMap(in Guess from, in Guess to) {
@@ -372,6 +470,7 @@ private:
 	
 	bool _empty = false;
 		
+	/// Setup given past guesses but no response information
 	void doInit(in Guess p, in Guess q, in Guess[] pastGuesses) {
 		fill(validSubst, true);
 		fill(substMap, cast(Digit)(DIGIT_MIN-1));    // -2 implies free (can map to any other free var)
@@ -382,7 +481,27 @@ private:
 		foreach (ref g; pastGuesses)
 			markInvalidSubsts(g,g,validSubst);
 		
-		// mark the unrestricteddigits that can be substituted for anything as free
+		// mark the unrestricted digits that can be substituted for anything as free
+		foreach (i, ref row; validSubst)
+			if (allPassFun!((x) {return x;})(row))
+				substMap[i] = -2;
+		
+		pos = DIGIT_MIN-1;
+		_empty = false;
+	}
+	
+	/// Setup given past guesses grouped by same response
+	void doInit(in Guess p, in Guess q, in GuessHistory[] guessSets) {
+		fill(validSubst, true);
+		fill(substMap, cast(Digit)(DIGIT_MIN-1));    // -2 implies free (can map to any other free var)
+		fill(used, false);
+		
+		// setup validSubst -- mark substitutions which cannot occur as impossible
+		markInvalidSubsts(p,q,validSubst);
+		foreach (guessSet; guessSets)
+			markInvalidSubstsUnion(guessSet,validSubst);
+		
+		// mark the unrestricted digits that can be substituted for anything as free
 		foreach (i, ref row; validSubst)
 			if (allPassFun!((x) {return x;})(row))
 				substMap[i] = -2;
@@ -424,12 +543,14 @@ private:
     }
 
 public:
-    this(in Guess p, in Guess q, in Guess[] pastGuesses)
-    {
-//        this.p = p;
-//        this.q = q;
-//        this.pastGuesses = pastGuesses;
+    this(in Guess p, in Guess q, in Guess[] pastGuesses) {
         doInit(p,q,pastGuesses);
+        // prime: find first substitution
+        popFront();
+    }
+    
+    this(in Guess p, in Guess q, in GuessHistory[] guessSets) {
+    	doInit(p,q,guessSets);
         // prime: find first substitution
         popFront();
     }
@@ -443,8 +564,7 @@ public:
         return substMap;
     }
 
-    @property typeof(this) save()
-    {
+    @property typeof(this) save() {
         auto ret = this;
 //        assert(ret.p == p);
 //        assert(ret.q == q);
@@ -472,6 +592,11 @@ unittest {
 //	foreach (subst; validSubstitutionStream(p,q,past))
 //		writeln(subst);
 }
+auto validSubstitutionStream(in Guess p, in Guess q, in GuessHistory[] guessSets) {
+	return ValidSubstitutionStream(p,q,guessSets);
+}
+
+
 Guess applySubstitution(Guess g, Substitution subst) {
 	Guess o;
 	foreach(i, din; g)
@@ -512,9 +637,12 @@ auto findSubstitution(in Guess p, in Guess q, in Guess[] pastGuesses)
 	findSubstitution_Impl(p,q,pastGuesses,validSubst,substMap,used,DIGIT_MIN);
 	
 }*/
-auto mySetDifference(T,size_t L)(in T[] univ, in T[L] toRem) {
-//	foreach (
-}
+//auto mySetDifference(T,size_t L)(in T[] univ, in T[L] toRem) {
+////	foreach (
+//}
+
+/// marks false in validSubst for each substition a->b defined by validSubst[a][b]
+///  that will result in an impossible transformation function because range(subst(p)) != domain(q)
 void markInvalidSubsts(in Guess p, in Guess q, ref bool[NUM_DIGIT][NUM_DIGIT] validSubst) {
 	// digits in p can only go to digits in q
 	auto qsort = q.dup; 
@@ -550,6 +678,49 @@ unittest {
 mixin template DPROP() {
 	void dprop(string a)() { writeln(a,":",typeid(mixin(a)),":",mixin(a)); }
 }
+
+/// insert val, if not already there, into array in sorted position 
+void insertUniqueSorted(T,E)(ref T[] array, in E val)
+if (is(E : T)) {
+	assert (isSorted(array));
+	sizediff_t pos = countUntil!("a > b")(array, val);
+	if (pos == -1)
+		array ~= val;
+	else
+		array.insertInPlace(pos, val);
+}
+unittest {
+	long[] arr = [];
+	insertUniqueSorted(arr, 5);
+	assert(arr == [5]);
+	insertUniqueSorted(arr, 3);
+	assert(arr == [3,5]);
+	insertUniqueSorted(arr, 8);
+	assert(arr == [3,5,8]);
+	insertUniqueSorted(arr, 6);
+	assert(arr == [3,5,6,8]);
+}
+
+/// Similar to above, but eliminates substitutions that do not take a digit in guessSet to some other digit in guessSet
+void markInvalidSubstsUnion(in Guess[] guessSet, ref bool[NUM_DIGIT][NUM_DIGIT] validSubst) {
+	Digit[] digitsInSet;
+	foreach (g; guessSet)
+		foreach(Digit d; g)
+			insertUniqueSorted(digitsInSet, d); 
+	foreach (Digit from; digitsInSet)
+		foreach (Digit tonot; setDifference(ALL_DIGITS, digitsInSet))
+			validSubst[from][tonot] = false;
+}
+unittest {
+	Guess[] guessSet = [[0,1,2,3],[1,2,3,4]];
+	bool[NUM_DIGIT][NUM_DIGIT] validSubst; fill(validSubst,true);
+	markInvalidSubstsUnion(guessSet, validSubst);
+//	foreach(i, row; validSubst)
+//		writeln(i,": ",row);
+	assert(validSubst == [[true, true, true, true, true, false, false, false, false, false], [true, true, true, true, true, false, false, false, false, false], [true, true, true, true, true, false, false, false, false, false], [true, true, true, true, true, false, false, false, false, false], [true, true, true, true, true, false, false, false, false, false], [true, true, true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true, true, true]]);
+	
+}
+
 /*
 void findSubstitution_Impl(
 	in Guess p, 
@@ -644,7 +815,9 @@ public:
     }
 }
 
-Guess[] computeRepresentativeGuesses(in Guess[] past) {
+/// Returns only the representative guesses, i.e., no 2 guesses returned will convey exactly the same information upon partitioning
+/// Allows for trial of a minimum set of parition instances
+Guess[] computeRepresentativeGuesses(in GuessHistory past) {
 	Guess[] reprGuesses = past.dup; // past guesses are always representative
 	foreach (g; AllGuessesGenerator()) {
 		bool equiv = false;
@@ -660,29 +833,62 @@ Guess[] computeRepresentativeGuesses(in Guess[] past) {
 	return reprGuesses[past.length .. $];
 }
 unittest {
-	enum Guess[] nopast = { Guess[] g; return g;}(); 
-	 assert (computeRepresentativeGuesses(nopast) == [[0,1,2,3]]);
-	enum Guess[] afterfirst = [[0,1,2,3]];
-     Guess[] reprGuess2nd = computeRepresentativeGuesses(afterfirst);
-    assert (reprGuess2nd.length == 19);
-    
-    Guess[][] reprGuess3rd;
-    reprGuess3rd.length = reprGuess2nd.length;
-    uint total_rg = 0;
-    foreach (i, g; reprGuess2nd) {
-    	dnoln(afterfirst~g);
-    	reprGuess3rd[i] = computeRepresentativeGuesses(afterfirst~g);
-    	total_rg += reprGuess3rd[i].length;
-    	d(" has ",reprGuess3rd[i].length," repr guesses: ");//,reprGuess3rd[i]);
-    }
-    d("Total 3rd level repr. guesses: ",total_rg);
-    d("Average (/",reprGuess2nd.length,") = ",cast(double)(total_rg)/reprGuess2nd.length);
-    assert(reprGuess3rd.length == reprGuess2nd.length);
+//	enum Guess[] nopast = { Guess[] g; return g;}(); 
+//	 assert (computeRepresentativeGuesses(nopast) == [[0,1,2,3]]);
+//	enum Guess[] afterfirst = [[0,1,2,3]];
+//     Guess[] reprGuess2nd = computeRepresentativeGuesses(afterfirst);
+//    assert (reprGuess2nd.length == 19);
+//    
+//    Guess[][] reprGuess3rd;
+//    reprGuess3rd.length = reprGuess2nd.length;
+//    uint total_rg = 0;
+//    foreach (i, g; reprGuess2nd) {
+//if (i == 0) break;
+//    	dnoln(afterfirst~g);
+//    	reprGuess3rd[i] = computeRepresentativeGuesses(afterfirst~g);
+//    	total_rg += reprGuess3rd[i].length;
+//    	d(" has ",reprGuess3rd[i].length," repr guesses: ");//,reprGuess3rd[i]);
+//
+//    }
+//    d("Total 3rd level repr. guesses: ",total_rg);
+//    d("Average (/",reprGuess2nd.length,") = ",cast(double)(total_rg)/reprGuess2nd.length);
+//    assert(reprGuess3rd.length == reprGuess2nd.length);
 }
 
 //Guess[] computeSecondTurnReprGuesses() {
 //	return computeRepresentativeGuesses([[0,1,2,3]]);
 //}
+
+/// Makes use of additional information (responses) to further narrow down representative guesses
+Guess[] computeRepresentativeGuesses(in GuessHistory past, in ResponseHistory pastResponses) {
+	Guess[] reprGuesses = past.dup; // past guesses are always representative
+	// group pastGuesses into sets with same responses
+	const GuessHistory[] pastGrouped = groupPastGuessesBySameResponse(past, pastResponses);
+	
+	foreach (g; AllGuessesGenerator()) {
+		bool equiv = false;
+		foreach (reprG; reprGuesses) {
+			if (equiv = findTransform(g,reprG,pastGrouped),equiv)
+				break;
+		}
+		if (!equiv) { // g is not equivalent to any guess already in reprGuesses
+			reprGuesses ~= g;
+		}
+	}
+	// now eliminate the past guesses
+	return reprGuesses[past.length .. $];
+}
+unittest {
+	/// Writes the reduction in representative guess size after using additional response information
+	/// Todo: Output this for many different cominations
+	GuessHistory gh = [[0,1,2,3],[1,2,3,4]];
+	ResponseHistory rh = [[0,1],[0,1]];
+	Guess[] rg_noinfo = computeRepresentativeGuesses(gh);
+	writeln("rg_noinfo: ",rg_noinfo.length);
+	Guess[] rg_info = computeRepresentativeGuesses(gh, rh);
+	writeln("rg_info: ",rg_info.length);
+	assert (rg_info.length < rg_noinfo.length);
+}
 
 Response doCompare(Guess a, Guess b) {
 	Response r = [0,0];
