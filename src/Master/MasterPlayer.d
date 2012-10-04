@@ -22,7 +22,7 @@ in {
 	assert( f.isOpen() ); 
 	assert( f.tell == 0 ); // we're at the beginning of the file
 	string firstLine = f.readln();
-	int maxDepth = to!int(firstLine[0 .. $-1]); // kill newline
+	int maxDepth = to!int(std.string.stripRight(firstLine)); // kill newline
 	assert( maxDepth >= gh.length ); // the parameter is valid
 	f.rewind();
 }
@@ -68,8 +68,9 @@ void findGuessInFile(File f, in Guess guess, in int depth, in GuessHistory gh) {
 			}
 			if (line[depth-1] == ' ' && line[depth] != ' ') {
 				Guess g;
-				foreach (i, d; line[depth .. depth+4])
-					g[i] = cast(Digit)(d-'0');
+//				foreach (i, d; line[depth .. depth+4])
+//					g[i] = cast(Digit)(d-'0');
+				g = stringToGuess(line[depth .. depth+4]);
 				if (first_run ? guess == g : findTransform(guess,g,gh)) // check for a transform if we don't find an exact match the first time
 					return;
 			}
@@ -111,11 +112,11 @@ void playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
 		pastResponses ~= mg.makeGuess(bestGuess);
 		
 		// update consisT according to response
-		Guess[] newConsisT;
-		foreach (g; consisT)
-			if (testConsistent(g, pastGuesses[0], pastResponses[0]))
-				newConsisT ~= g;
-		consisT = newConsisT;
+//		Guess[] newConsisT;
+//		foreach (g; consisT)
+//			if (testConsistent(g, pastGuesses[0], pastResponses[0]))
+//				newConsisT ~= g;
+		consisT = psBest[responseToPartitionIndex(pastResponses[$-1])];
 		
 		// show status
 		writeln(consisT.length," possible solutions remain. ",mg.toString());
@@ -125,6 +126,10 @@ void playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
 }
 
 Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponses, in Guess[] consisT, File fileRepGuess, in int maxDepthRepGuess, out PartitionSet bestGuessPartitionSet) {
+	// before doing anything, if there is only 1 consistent guess, guess it!
+	if (consisT.length == 1)
+		return consisT[0];
+	
 	Guess bestGuess;
 	double bestEntropy=0;
 	int bestNonemptyParts=0;
@@ -164,7 +169,8 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 		computeEntropyMostParts(consisT.length,ps,entropy,nonemptyParts);
 		
 		// is this guess better than our best so far?
-		if (shouldUpdateBestGuess(bestGuess,bestEntropy,bestNonemptyParts,rg,entropy,nonemptyParts)) {
+		if (shouldUpdateBestGuess(bestGuess,bestEntropy,bestNonemptyParts, bestGuessPartitionSet,
+								rg,entropy,nonemptyParts, ps)) {
 			bestGuess = rg; bestEntropy = entropy; bestNonemptyParts = nonemptyParts;
 			bestGuessPartitionSet = ps.dup;
 		}
@@ -273,22 +279,30 @@ PartitionSet createPartition(in Guess rg, in Guess[] consisT, in int bestNonempt
 } 
 
 // entropy and nonemptyParts are passed by reference
-void computeEntropyMostParts(in double n, in PartitionSet ps, out double entropy = 0, out int nonemptyParts = 0) {
+void computeEntropyMostParts(in double n, in PartitionSet ps, out double entropy, out int nonemptyParts) {
+	entropy = 0.0;
+	nonemptyParts = 0;
 	foreach (const Guess[] partition; ps) {
 		if (partition.length == 0) 
 			continue; // no contribution to entropy or nonemptyParts
+//		writeln("\t\t",entropy," += ",partition.length," * ",log(partition.length));
 		entropy += partition.length * log(partition.length);
 		nonemptyParts++;
 	}
-	entropy = log(n) - (1/n)*entropy;
+//	writeln("\tentropy log(",n,")-(1/",n,")*",entropy," = ",log(n)," - ",(1.0/n)*entropy," = ",log(n) - (1.0/n)*entropy);
+	entropy = log(n) - (1.0/n)*entropy;
+	
 }
 
 /// return true if we should swap the current guess with the best guess (so that rg is the new best guess)
 // linked to function createPartition
-bool shouldUpdateBestGuess(in Guess bestGuess, in double bestEntropy, in int bestNonemptyParts,in Guess rg,in double entropy,in int nonemptyParts) {
+bool shouldUpdateBestGuess(in Guess bestGuess, in double bestEntropy, in int bestNonemptyParts, in PartitionSet bestPS,
+	in Guess rg,in double entropy,in int nonemptyParts, in PartitionSet newPS) {
 	// Current implementation: rank by mostParts first, then by entropy as second priority
+	// Also, if same # nonempty parts but one is consistent while the other is not, take the consistent one (we may actually guess it right!)
 	return nonemptyParts > bestNonemptyParts || 
-		(nonemptyParts == bestNonemptyParts && entropy > bestEntropy);
+		(nonemptyParts == bestNonemptyParts && (entropy > bestEntropy || 
+							(bestPS[responseToPartitionIndex([4,0])].empty && !newPS[responseToPartitionIndex([4,0])].empty)));
 }
 
 // Return true if this guess is so good that we should stop evaluating representative guesses and choose this one as the best
