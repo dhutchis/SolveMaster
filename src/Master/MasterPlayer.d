@@ -9,13 +9,82 @@ import std.traits;
 import std.range;
 import std.typecons;
 import std.math: log;
+import std.file;
 
 import Master.MasterGame;
 import Master.MasterUtil;
 import Master.MasterSpecific;
 
+//Guess[] getRepGuessesFromFile(File f, in int depthRepGuess)
+Guess[] getRepGuessesFromFile(File f, in GuessHistory gh)
+in { 
+	assert( gh.length > 0 ); // we want more than just the first turn guess
+	assert( f.isOpen() ); 
+	assert( f.tell == 0 ); // we're at the beginning of the file
+	string firstLine = f.readln();
+	int maxDepth = to!int(firstLine[0 .. $-1]); // kill newline
+	assert( maxDepth >= gh.length ); // the parameter is valid
+	f.rewind();
+}
+out {
+	assert (f.tell == 0); // file is put back at the beginning
+}
+body {
+	// throw away first line and second line (which is just 0123)
+	f.readln();
+	f.readln();
+	
+	// get to the current representative guess set
+	foreach (i, g; gh[1..$])
+		findGuessInFile(f, g, i+1, gh);
+	
+	auto depthRepGuess = gh.length;
+	Guess[] repGuesses;
+	// the turn 1 guesses have 1 space, etc. (could this be more efficient?)
+	foreach ( line; f.byLine()) {
+		if (line[depthRepGuess-1] == ' ' && line[depthRepGuess] != ' ') {
+			Guess g;
+			foreach (i, d; line[depthRepGuess .. depthRepGuess+4])
+				g[i] = cast(Digit)(d-'0');
+			repGuesses ~= g;
+		}
+	}
+	
+	f.rewind();
+	return repGuesses;
+}
 
-void playGame(MasterGame mg) {
+void findGuessInFile(File f, in Guess guess, in int depth, in GuessHistory gh) {
+	writeln("findGuessInFile: ",guessToString(guess)," ",depth);
+//	uint n = 0;
+	auto start_pos = f.tell();
+	bool first_run = true;
+	while (true) {
+		foreach (line; f.byLine()) {
+//			writeln(" ",++n,":",line);
+			if (line[depth-1] != ' ') {
+				// o no, we overshot it
+				break;
+			}
+			if (line[depth-1] == ' ' && line[depth] != ' ') {
+				Guess g;
+				foreach (i, d; line[depth .. depth+4])
+					g[i] = cast(Digit)(d-'0');
+				if (first_run ? guess == g : findTransform(guess,g,gh)) // check for a transform if we don't find an exact match the first time
+					return;
+			}
+		}
+		f.seek(start_pos, SEEK_SET);
+		if (!first_run)
+			return; // we failed...
+		first_run = false;
+	}
+}
+
+
+/// Plays a game of Mastermind using mg, optionally with the aid of precomputed representative guesses in fileRepGuess
+/// (the file goes maxDepthRepGuess representative guesses deep)
+void playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
 	GuessHistory pastGuesses;
 	ResponseHistory pastResponses;
 	Guess[] consisT;
@@ -35,7 +104,7 @@ void playGame(MasterGame mg) {
 	// while we didn't guess correctly yet
 	while (pastResponses[$-1] != [4,0]) {
 		PartitionSet psBest;
-		Guess bestGuess = findBestGuess(pastGuesses, pastResponses, consisT, psBest);
+		Guess bestGuess = findBestGuess(pastGuesses, pastResponses, consisT, fileRepGuess, maxDepthRepGuess, psBest);
 		
 		//attempt the best guess
 		pastGuesses ~= bestGuess;
@@ -55,16 +124,24 @@ void playGame(MasterGame mg) {
 	writeln("Found solution after ",pastGuesses.length," guesses");
 }
 
-Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponses, in Guess[] consisT, out PartitionSet bestGuessPartitionSet) {
+Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponses, in Guess[] consisT, File fileRepGuess, in int maxDepthRepGuess, out PartitionSet bestGuessPartitionSet) {
 	Guess bestGuess;
 	double bestEntropy=0;
 	int bestNonemptyParts=0;
 	
 	// only evaluate the representative guesses - this gets expensive after turn 3
 	Guess[] reprGuesses;
-	if (pastGuesses.length <= 3)
-		reprGuesses = computeRepresentativeGuesses(pastGuesses, pastResponses); // pass response information available at runtime for reduction in reprGuesses size
-	else
+	//  previous statement recomputes the representative guesses from scratch
+	// latter statement gets them from a precomputed file
+//	if (pastGuesses.length <= 3)
+//		reprGuesses = computeRepresentativeGuesses(pastGuesses, pastResponses); // pass response information available at runtime for reduction in reprGuesses size
+	if (pastGuesses.length <= maxDepthRepGuess) {
+		reprGuesses = getRepGuessesFromFile(fileRepGuess, pastGuesses);
+		// for turns 3 and up, narrow down the reprGuesses based on current experience
+		if (pastGuesses.length > 3)
+			reprGuesses = computeRepresentativeGuessesNarrowing(pastGuesses, pastResponses, reprGuesses);
+		// writeln: show reduction in representative guesses at this point
+	} else
 		reprGuesses = computeGuessesToTry(pastGuesses, pastResponses, consisT);
 	foreach (i, rg; reprGuesses) {
 		// should we even consider this guess? (alpha/beta pruning)

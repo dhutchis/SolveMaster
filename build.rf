@@ -9,5 +9,5 @@
 "src\Master\MasterSpecific.d"
 "src\Master\MasterUtil.d"
 
--unittest
--w
+
+-wi

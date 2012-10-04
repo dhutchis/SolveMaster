@@ -861,11 +861,16 @@ unittest {
 
 /// Makes use of additional information (responses) to further narrow down representative guesses
 Guess[] computeRepresentativeGuesses(in GuessHistory past, in ResponseHistory pastResponses) {
+	return computeRepresentativeGuessesNarrowing(past, pastResponses, AllGuessesGenerator());
+}
+	
+Guess[] computeRepresentativeGuessesNarrowing(Range)(in GuessHistory past, in ResponseHistory pastResponses, Range reprGuessesRange)
+ if (isInputRange!Range && is(ElementType!Range == Guess)) {	
 	Guess[] reprGuesses = past.dup; // past guesses are always representative
 	// group pastGuesses into sets with same responses
 	const GuessHistory[] pastGrouped = groupPastGuessesBySameResponse(past, pastResponses);
 	
-	foreach (g; AllGuessesGenerator()) {
+	foreach (g; reprGuessesRange) {
 		bool equiv = false;
 		foreach (reprG; reprGuesses) {
 			if (equiv = findTransform(g,reprG,pastGrouped),equiv)
@@ -881,13 +886,13 @@ Guess[] computeRepresentativeGuesses(in GuessHistory past, in ResponseHistory pa
 unittest {
 	/// Writes the reduction in representative guess size after using additional response information
 	/// Todo: Output this for many different cominations
-	GuessHistory gh = [[0,1,2,3],[1,2,3,4]];
-	ResponseHistory rh = [[0,1],[0,1]];
-	Guess[] rg_noinfo = computeRepresentativeGuesses(gh);
-	writeln("rg_noinfo: ",rg_noinfo.length);
-	Guess[] rg_info = computeRepresentativeGuesses(gh, rh);
-	writeln("rg_info: ",rg_info.length);
-	assert (rg_info.length < rg_noinfo.length);
+//	GuessHistory gh = [[0,1,2,3],[1,2,3,4]];
+//	ResponseHistory rh = [[0,1],[0,1]];
+//	Guess[] rg_noinfo = computeRepresentativeGuesses(gh);
+//	writeln("rg_noinfo: ",rg_noinfo.length);
+//	Guess[] rg_info = computeRepresentativeGuesses(gh, rh);
+//	writeln("rg_info: ",rg_info.length);
+//	assert (rg_info.length < rg_noinfo.length);
 }
 
 Response doCompare(Guess a, Guess b) {
