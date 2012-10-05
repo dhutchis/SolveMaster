@@ -48,6 +48,7 @@ public:
 		pastGuesses ~= g;
 		Response r = doCompare(g,soln);
 		pastResponses ~= r;
+		writeln("Guess: ",guessToString(g)," Response: ",responseToString(r));
 		return r;
 	}
 	

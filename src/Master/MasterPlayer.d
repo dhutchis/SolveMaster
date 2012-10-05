@@ -9,11 +9,13 @@ import std.traits;
 import std.range;
 import std.typecons;
 import std.math: log;
-import std.file;
+//import std.file;
 
 import Master.MasterGame;
 import Master.MasterUtil;
 import Master.MasterSpecific;
+
+version = 2;
 
 //Guess[] getRepGuessesFromFile(File f, in int depthRepGuess)
 Guess[] getRepGuessesFromFile(File f, in GuessHistory gh)
@@ -55,7 +57,7 @@ body {
 }
 
 void findGuessInFile(File f, in Guess guess, in int depth, in GuessHistory gh) {
-	writeln("findGuessInFile: ",guessToString(guess)," ",depth);
+	//writeln("findGuessInFile: ",guessToString(guess)," ",depth);
 //	uint n = 0;
 	auto start_pos = f.tell();
 	bool first_run = true;
@@ -82,25 +84,36 @@ void findGuessInFile(File f, in Guess guess, in int depth, in GuessHistory gh) {
 	}
 }
 
+void writePossibleSolutions(in Guess[] consisT) {
+	write("[ ",consisT.length," ] Consistent solutions:");
+	if (consisT.length < 20)
+		foreach(g; consisT) 
+			write(" ",guessToString(g));
+	else 
+		write(" ...too many to list");
+	writeln();
+}
+
 
 /// Plays a game of Mastermind using mg, optionally with the aid of precomputed representative guesses in fileRepGuess
 /// (the file goes maxDepthRepGuess representative guesses deep)
 void playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
 	GuessHistory pastGuesses;
 	ResponseHistory pastResponses;
-	Guess[] consisT;
+	Guess[] consisT; // the set of consistent guesses
+	writeln("New Game: ",mg);
 	
 	// first guess
 	Guess first = [0,1,2,3];
 	pastGuesses ~= first;
 	pastResponses ~= mg.makeGuess(first);
-	writeln("after first guess: ",mg.toString());
+	//writeln("After first guess: ",mg);
 	
 	// fill consisT with valid possible solutions
 	foreach(g; AllGuessesGenerator())
 		if (testConsistent(g, pastGuesses[0], pastResponses[0]))
 			consisT ~= g;
-	writeln(consisT.length," possible solutions after first guess");
+	writePossibleSolutions(consisT);
 	
 	// while we didn't guess correctly yet
 	while (pastResponses[$-1] != [4,0]) {
@@ -119,63 +132,92 @@ void playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
 		consisT = psBest[responseToPartitionIndex(pastResponses[$-1])];
 		
 		// show status
-		writeln(consisT.length," possible solutions remain. ",mg.toString());
+		writePossibleSolutions(consisT);
 	}
 	
 	writeln("Found solution after ",pastGuesses.length," guesses");
+	writeln("Game history: ",mg);
 }
 
 Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponses, in Guess[] consisT, File fileRepGuess, in int maxDepthRepGuess, out PartitionSet bestGuessPartitionSet) {
 	// before doing anything, if there is only 1 consistent guess, guess it!
-	if (consisT.length == 1)
+	if (consisT.length == 1) {
+		writeln("Only 1 consistent guess: ",guessToString(consisT[0]));
 		return consisT[0];
+	}
 	
+	/*	We need to choose the guess that maximizes the information we gain after receiving feedback from our guess, ultimately minimizing the average number of guesses before winning.
+		First we need to decide what guesses we will consider.  Two strategies:
+		1. Use precomputed representative guesses.  They should be precomputed as computing them right now at run time is expensive.  This effectively prunes away all guesses that are
+			guranteed to provide the same information as a guess in the representative set, saving quite a few CPU cycles.
+		2. If precomputed representative guesses are not available, prune away as many redundant and useless guesses as possible via the guidelines in the function computeGuessesToTry().
+			We will likely evaluate many more guesses than if we started with a representative set, but if we use too complex methods here, the cost to evaluate whether we should consider 
+			a guess will exceed the cost of just making the guess.
+		Next we will evaluate the guesses that pass the previous test by computing the entropy and number of nonempty partitions on the partiton set generated from the 14 possible responses to a guess.
+		We will choose the set that has the best entropy and number of nonempty partitions.
+	*/
 	Guess bestGuess;
 	double bestEntropy=0;
 	int bestNonemptyParts=0;
+	Guess[] reprGuesses; // the guesses we will evaluate
 	
-	// only evaluate the representative guesses - this gets expensive after turn 3
-	Guess[] reprGuesses;
-	//  previous statement recomputes the representative guesses from scratch
-	// latter statement gets them from a precomputed file
-//	if (pastGuesses.length <= 3)
-//		reprGuesses = computeRepresentativeGuesses(pastGuesses, pastResponses); // pass response information available at runtime for reduction in reprGuesses size
-	if (pastGuesses.length <= maxDepthRepGuess) {
-		reprGuesses = getRepGuessesFromFile(fileRepGuess, pastGuesses);
-		// for turns 3 and up, narrow down the reprGuesses based on current experience
-		if (pastGuesses.length > 3)
+	//  Do this to compute the representative guesses from scratch
+	//latter statement gets them from a precomputed file
+	//if (pastGuesses.length <= 3)
+	//	reprGuesses = computeRepresentativeGuesses(pastGuesses, pastResponses); // pass response information available at runtime for reduction in reprGuesses size
+	
+	if (pastGuesses.length <= maxDepthRepGuess) { // if we have precomputed representative guess information
+		reprGuesses = getRepGuessesFromFile(fileRepGuess, pastGuesses); // get the info
+		writeln("From precomputed file: ",reprGuesses.length," representative guesses (narrowed down from 5040)");
+		if (pastGuesses.length > 3) { // for turns 3 and up, narrow down the reprGuesses based on whether we had a repeated response
+			// todo: only do this if we had a repeated response
 			reprGuesses = computeRepresentativeGuessesNarrowing(pastGuesses, pastResponses, reprGuesses);
-		// writeln: show reduction in representative guesses at this point
-	} else
+			writeln("\tBased on repeated responses in game history, reduced the number of representative guesses to ",reprGuesses.length); 
+		}
+	} else {
 		reprGuesses = computeGuessesToTry(pastGuesses, pastResponses, consisT);
-	foreach (i, rg; reprGuesses) {
-		// should we even consider this guess? (alpha/beta pruning)
+		writeln("Using many heuristics, reuced guesses to try from 5040 to ",reprGuesses.length);
+	}
+	
+	foreach (i, rg; reprGuesses) { // for each guess to try
+		// should we even consider this guess? (even more alpha/beta pruning)
 		if (!shouldConsiderGuess(rg, bestGuess,bestEntropy,bestNonemptyParts,bestGuessPartitionSet,consisT)) {
 			continue;
 		}
 		
 		// should we stop evaluating guesses return the best right now?
 		if (shouldStopEvaluatingGuesses(bestGuess,bestEntropy,bestNonemptyParts, consisT.length-i, bestGuessPartitionSet, consisT)) {
-			write("stopped evaluating guesses early; ");
 			break;
 		}
 		
 		// EVALUATE GUESS: divide consisT into partitions according to all possible reponses after guessing rg
 		int nonemptyParts = 0;
 		PartitionSet ps = createPartition(rg, consisT, bestNonemptyParts, nonemptyParts);
+		if (ps == PartitionSet.init)
+			continue; // we pruned it early in createPartition
 		
 		// compute entropy, most parts heuristics
 		double entropy = 0;
-		computeEntropyMostParts(consisT.length,ps,entropy,nonemptyParts);
+		computeEntropy(consisT.length,ps,entropy);
+		version(3) {
+			write(" Guess ",guessToString(rg)," has entropy=",entropy,"; nonemptyParts=",nonemptyParts,"; partition sizes");
+			foreach (ga; ps) write(" ",ga.length);
+			writeln();
+		}
 		
 		// is this guess better than our best so far?
 		if (shouldUpdateBestGuess(bestGuess,bestEntropy,bestNonemptyParts, bestGuessPartitionSet,
 								rg,entropy,nonemptyParts, ps)) {
+			version(1) {
+				write(" Replacing previous best guess ",guessToString(bestGuess)," with ",guessToString(rg)," entropy=",entropy,"; nonemptyParts=",nonemptyParts,"; partition sizes");
+				foreach (ga; ps) write(" ",ga.length);
+				writeln();
+			}
 			bestGuess = rg; bestEntropy = entropy; bestNonemptyParts = nonemptyParts;
 			bestGuessPartitionSet = ps.dup;
 		}
 	}
-	writeln("CHOSEN GUESS: ",guessToString(bestGuess)," entropy=",bestEntropy,"; nonemptyParts=",bestNonemptyParts);
+	writeln("Choosing: ",guessToString(bestGuess)," entropy=",bestEntropy,"; nonemptyParts=",bestNonemptyParts);
 	
 	return bestGuess;
 }
@@ -185,8 +227,9 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 ///		(and guesses that will get pruned later anyway because they won't parition consisT best)
 Guess[] computeGuessesToTry(in GuessHistory pastGuesses, in ResponseHistory pastResponses, in Guess[] consisT) {
 	Guess[] guessesToTry;
-	bool[NUM_DIGIT] absentDigits = getAbsentDigits(pastGuesses, pastResponses), // future: track these in the state of the problem
-		uncalledDigits = getUncalledDigits(pastGuesses);
+	// todo: track these in the state of the problem
+	bool[NUM_DIGIT] absentDigits = getAbsentDigits(pastGuesses, pastResponses), 
+					uncalledDigits = getUncalledDigits(pastGuesses);
 	Digit[NUM_PLACE] lowestUncalledDigits = getLowestSortedUncalledDigits(uncalledDigits);
 	
 	guessGenLoop: foreach (g; AllGuessesGenerator()) {
@@ -197,15 +240,18 @@ Guess[] computeGuessesToTry(in GuessHistory pastGuesses, in ResponseHistory past
 		byte numUncalledDigits = 0;
 		foreach(d; g) {
 			// if we got a 0.0 response on this digit, don't include it
-			if (absentDigits[d])
+			if (absentDigits[d]) {
+				version(3) writeln("   Pruning ",guessToString(g)," because it contains the absent digit ",to!char(d));
 				continue guessGenLoop;
+			}
 			// if we have an uncalled digit and it's not the first representative, don't include it
-			// first representative specifies uncalled digits in strictly ascending order
-			//   ex. if [5,6,7,8,9] uncalled, [3,7,2,5] can be replaced with [3,5,2,6] without loss of information
+			// the first representative specifies uncalled digits in strictly ascending order
+			//   ex. if [5,6,7,8,9] are uncalled digits, [3,7,2,5] can be replaced with [3,5,2,6] without loss of information
 			if (uncalledDigits[d]) {
-				if (d != lowestUncalledDigits[numUncalledDigits])
+				if (d != lowestUncalledDigits[numUncalledDigits]) {
+					version(3) writeln("   Pruning ",guessToString(g)," because it contains an uncalled digit and is not the first representative of its kind");
 					continue guessGenLoop;
-				else
+				} else
 					numUncalledDigits++;
 			}
 			
@@ -261,14 +307,16 @@ PartitionSet createPartition(in Guess rg, in Guess[] consisT, in int bestNonempt
 	PartitionSet ps;
 	
 	foreach (i, consis; consisT) {
-		if (consisT.length - i < bestNonemptyParts - nonemptyParts) // linked to shouldUpdateBestGuess
+		auto a = consisT.length - i;
+		auto b = bestNonemptyParts - nonemptyParts;
+//		writeln("a(",typeid(a),")",a," < b(",typeid(b),")",b," is ",a<b); 
+		if (cast(int)(consisT.length - i) < bestNonemptyParts - nonemptyParts) { // linked to shouldUpdateBestGuess
+			version(4) writeln("   Stopped considering ",guessToString(rg)," early because it cannot reach as many nonempty paritions as the current best");//
+			//i:",i," consisT.length",consisT.length," bestNonemptyParts:",bestNonemptyParts," nonemptyParts:",nonemptyParts," consisT.length - i:",
+			//consisT.length - i," bestNonemptyParts-nonemptyParts:",bestNonemptyParts - nonemptyParts, " eval:",(consisT.length - i) < (bestNonemptyParts - nonemptyParts),"   huh?",263<-1);
+			ps = PartitionSet.init;
 			break;
-		// if rg is consistent itself, add it to the final category -- This will happen natually
-//		if (rg == consis) {
-//			ps[responseToPartitionIndex([4,0])] ~= rg;
-//			nonemptyParts++;
-//			continue;
-//		}
+		}
 		Response r = doCompare(rg,consis); // 4.0 for rg == consis
 		int idx = responseToPartitionIndex(r);
 		if (ps[idx].length == 0)
@@ -279,18 +327,19 @@ PartitionSet createPartition(in Guess rg, in Guess[] consisT, in int bestNonempt
 } 
 
 // entropy and nonemptyParts are passed by reference
-void computeEntropyMostParts(in double n, in PartitionSet ps, out double entropy, out int nonemptyParts) {
+void computeEntropy(in double n, in PartitionSet ps, out double entropy) {
 	entropy = 0.0;
-	nonemptyParts = 0;
+//	nonemptyParts = 0;
 	foreach (const Guess[] partition; ps) {
 		if (partition.length == 0) 
 			continue; // no contribution to entropy or nonemptyParts
 //		writeln("\t\t",entropy," += ",partition.length," * ",log(partition.length));
-		entropy += partition.length * log(partition.length);
-		nonemptyParts++;
+		entropy -= partition.length * log(partition.length);
+//		nonemptyParts++;
 	}
 //	writeln("\tentropy log(",n,")-(1/",n,")*",entropy," = ",log(n)," - ",(1.0/n)*entropy," = ",log(n) - (1.0/n)*entropy);
-	entropy = log(n) - (1.0/n)*entropy;
+	version(1)
+		entropy = log(n) + (1.0/n)*entropy; // speedup: don't need to calculate actual entropy; instead maximize the summed negative entropy (so more positive is preferred)
 	
 }
 
@@ -313,13 +362,15 @@ bool shouldStopEvaluatingGuesses(in Guess bestGuess, in double bestEntropy, in i
 //	if (bestNonemptyParts == 14)
 //		return true;
 	
-	// if we find a guess that divides consisT into partitions of all size 1, it's clearly the winner.  We will win next turn (and maybe this one).
+	// if we find a guess that divides consisT into partitions of all size 1 and this guess is consistent, it's clearly the winner.  We will win next turn (and maybe this one).
 	// only possible if consisT.length is <= 14
-	if (consisT.length <= 14) {
+	if (consisT.length <= 14 && !bestGuessPartitionSet[responseToPartitionIndex([4,0])].empty) {
 		bool ret = true;
 		foreach(partition; bestGuessPartitionSet)
 			if (ret = partition.length == 1, !ret)
 				break;
+		if (ret)
+			writeln("Stopping consideration of guesses and accepting ",guessToString(bestGuess)," because it is consistent and divides the consistent guesses into paritions all of size 1");
 		return ret;
 	}
 	
@@ -327,8 +378,12 @@ bool shouldStopEvaluatingGuesses(in Guess bestGuess, in double bestEntropy, in i
 }
 
 bool shouldConsiderGuess(in Guess rg, in Guess bestGuess,in double bestEntropy,in int bestNonemptyParts, in PartitionSet bestPs, in Guess[] consisT) {
-	if (bestNonemptyParts == 13 && bestPs[responseToPartitionIndex([4,0])].length == 0)
-		return canFind(consisT,rg);
-	else return true;
+	if (bestNonemptyParts >= 13 && bestPs[responseToPartitionIndex([4,0])].length == 0) {
+		if (!canFind(consisT,rg)) {
+			writeln("Rejecting guess ",guessToString(rg)," because it is inconsistent and our best guess has at least 13 nonempty partitions");
+			return false;
+		}
+	}
+	return true;
 }
 

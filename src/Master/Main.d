@@ -52,6 +52,7 @@ void recurseSaveRepGuess(File f, in int depthLimit, in GuessHistory gh) {
 	
 }
 
+/// Reads the first line of a file and returns the maximunm depth of represenative guesses in that file
 int getMaxDepthFile(File f) 
 in {
 	assert( f.isOpen() ); 
@@ -68,6 +69,7 @@ body {
 	return maxDepth;
 }
 
+
 void main(string[] args) {
 	string targetString = "";
 	string repGuessFileString = "";
@@ -77,7 +79,7 @@ void main(string[] args) {
 	
 	//foreach(a; args) writeln(a);
 	getopt(args, std.getopt.config.passThrough,
-		"repGuessFile", &repGuessFileString,
+		"repGuessFile|f", &repGuessFileString,
 		"target", &targetString,
 		"depth", &depth,
 		"genRepGuess", &genRepGuess,
@@ -87,22 +89,13 @@ void main(string[] args) {
 //	print_usage_die(args, "repGuessFile:",repGuessFileString,"; target:",targetString,"; depth:",depth,"; genRepGuess:",genRepGuess);
 	if (help || args.length > 1) print_usage_die(args,"");
 	
-	// This is to test the reading of the repGuess file.
-//	const Guess[] gs = [[0,1,2,3],[1,2,3,5]];
-//	//writeln("HEY: ",gs ~ cast(Guess)[5,6,7,8]);
-//	File f2 = File(repGuessFileString, "r");
-//	scope(exit) f2.close();
-//	foreach (Guess g; getRepGuessesFromFile(f2,gs))
-//		writeln(guessToString(g));
-//	return;
-	
 	if (genRepGuess) {
 		// generate representative guesses of given depth
 		if (repGuessFileString.empty()) print_usage_die(args, "Where should I save the representative guesses?"); 
 		if (depth <= 0) print_usage_die(args, "You didn't specify a depth to generate representative guesses");
 		File f = File(repGuessFileString, "w");
 		
-		GuessHistory guessHistory = [[0,1,2,3]];
+		GuessHistory guessHistory = [[0,1,2,3]]; // initial guess is always 0123
 		f.writeln(depth);
 		f.writeln(guessToString(guessHistory[0]));
 		recurseSaveRepGuess(f, depth, guessHistory);
@@ -116,8 +109,6 @@ void main(string[] args) {
 		if (!targetString.empty()) {
 			// use the given target
 			Guess soln = stringToGuess(targetString);
-//			writeln(soln);
-//			return;
 			playGame(new MasterGame( soln ), f, maxDepthFile);
 		} else {
 			// use random target
@@ -127,7 +118,14 @@ void main(string[] args) {
 	}
 	
 	
-	
+	// This is to test the reading of the repGuess file.
+//	const Guess[] gs = [[0,1,2,3],[1,2,3,5]];
+//	//writeln("HEY: ",gs ~ cast(Guess)[5,6,7,8]);
+//	File f2 = File(repGuessFileString, "r");
+//	scope(exit) f2.close();
+//	foreach (Guess g; getRepGuessesFromFile(f2,gs))
+//		writeln(guessToString(g));
+//	return;
 	
 	
 	

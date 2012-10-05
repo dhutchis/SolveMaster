@@ -33,6 +33,7 @@ alias Response[] ResponseHistory;
 // alias function for transformation
 alias Guess[][14] PartitionSet;
 
+string toString(Guess g) { return guessToString(g); }
 
 // todo build lookup table at compile time
 int responseToPartitionIndex(Response r) {
