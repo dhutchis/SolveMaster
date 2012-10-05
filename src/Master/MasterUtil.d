@@ -939,7 +939,7 @@ bool testConsistent(Guess g, Guess x, Response r) {
 //	
 //}
 
-enum Response[] AllResponses = [[0,0],[0,1],[0,2],[0,3],[0,4],[1,0],[1,1],[1,2],[1,3],[2,0],[2,1],[2,2],[3,0]];
+enum Response[14] AllResponses = [[0,0],[0,1],[0,2],[0,3],[0,4],[1,0],[1,1],[1,2],[1,3],[2,0],[2,1],[2,2],[3,0],[4,0]];
 
 Guess stringToGuess(const char[] s) {
 	Guess g;

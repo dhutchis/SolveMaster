@@ -19,11 +19,14 @@ import Master.MasterSpecific;
 import Master.MasterUtil;
 
 // --genRepGuess --repGuessFile repGuess.txt --depth 2
+// Production compiler switches: -release -O -inline -noboundscheck
+
 void print_usage_die(A...)(string[] args, A msg) 
 	if (is(typeof({write(msg);}()))) {
 	writeln("Usage: ");
-	writeln(baseName(args[0]), " [--repGuessFile rep_guess_file] [--target codeWord]\n\tStarts a new game with "
-		"the specified target code (or a random one if unspecified) using the representative guess file");
+	writeln(baseName(args[0]), " [--repGuessFile rep_guess_file] [--target codeWord | --computeAvgGameLength]\n\tStarts a new game with "
+		"the specified target code (or a random one if unspecified) using the representative guess file.\n\t"
+		"If computeAvgGameLength is specified, outputs a table with the average game length classified according to first response.");
 	writeln(baseName(args[0]), " --genRepGuess --repGuessFile rep_guess_file --depth depth_level\n\tGenerates a representative "
 		"guess file x levels deep and saves it to the file"); 
 	writeln(msg);
@@ -77,6 +80,7 @@ void main(string[] args) {
 	bool genRepGuess = false;
 	bool help = false;
 	//bool interactive = true;
+	bool computeAvgGameLength = false;
 	
 	//foreach(a; args) writeln(a);
 	getopt(args, std.getopt.config.passThrough,
@@ -84,7 +88,8 @@ void main(string[] args) {
 		"target", &targetString,
 		"depth", &depth,
 		"genRepGuess", &genRepGuess,
-		"help|h|?", &help//,
+		"help|h|?", &help,
+		"computeAvgGameLength", &computeAvgGameLength//,
 		//"interactive|i", &interactive
 	);
 //	writeln("ARGS: ",args);
@@ -108,18 +113,60 @@ void main(string[] args) {
 		// let's play a game - get the max depth of the repr guesses from the file if it's available
 		File f = repGuessFileString.empty() ? File.init : File(repGuessFileString);
 		int maxDepthFile = repGuessFileString.empty() ? 0 : getMaxDepthFile(f);
-		if (!targetString.empty()) {
-			// use the given target
-			Guess soln = stringToGuess(targetString);
-			playGame(new MasterGame( soln ), f, maxDepthFile);
+		if (computeAvgGameLength) {
+			computeAverageGameLength(f,maxDepthFile);
 		} else {
-			// use random target
-			playGame(new MasterGame(), f, maxDepthFile);
+			if (!targetString.empty()) {
+				// use the given target
+				Guess soln = stringToGuess(targetString);
+				playGame(new MasterGame( soln ), f, maxDepthFile);
+			} else {
+				// use random target
+				playGame(new MasterGame(), f, maxDepthFile);
+			}
 		}
-		
 	}
 	
+}
+
+double computeAverageGameLength(File f, in int maxDepthFile) {
+	File savedstdout = stdout;
+	version(Windows) stdout = File("NUL","w");
+	else stdout = File(r"\dev\null","w");
+//	scope(exit) stdout = savedstdout;
 	
+	ulong[14] categorySum; categorySum[] = 0;
+	uint[14] categoryCount;
+	int i = 0;
+	foreach(g; AllGuessesGenerator()) {
+		i++;
+		// classify this guess based on the response it generates if the first guess is 0123 
+		auto l = playGame(new MasterGame(g), f, maxDepthFile);
+		auto idx = responseToPartitionIndex(doCompare(g,[0,1,2,3]));
+		categorySum[ idx ] += l;
+		categoryCount[idx]++;
+		if (i % (cast(int)(5040*0.1)) == 0)
+			savedstdout.writeln("On guess ",i," / 5040. Computing...");
+	}
+	
+	stdout.close();
+	stdout = savedstdout;
+	writeln("FirstResp.  Count  Avg.GameLength");
+	ulong grandSum = 0;
+	uint grandCount = 0;
+	foreach(r; AllResponses) {
+		auto idx = responseToPartitionIndex(r);
+		writeln(responseToString(r),'\t',categoryCount[idx],"   \t",cast(double)(categorySum[idx])/categoryCount[idx]);
+		grandSum += categorySum[idx];
+		grandCount += categoryCount[idx];
+	}
+	writeln("Total count of guesses: ",grandCount);
+	writeln("Overall average game length: ",cast(double)(grandSum)/grandCount);
+	return cast(double)(grandSum)/grandCount; 
+}
+
+
+
 	// This is to test the reading of the repGuess file.
 //	const Guess[] gs = [[0,1,2,3],[1,2,3,5]];
 //	//writeln("HEY: ",gs ~ cast(Guess)[5,6,7,8]);
@@ -154,4 +201,3 @@ void main(string[] args) {
 //    d("Total 3rd level repr. guesses: ",total_rg);
 //    d("Average (/",reprGuess2nd.length,") = ",cast(double)(total_rg)/reprGuess2nd.length);
 //    assert(reprGuess3rd.length == reprGuess2nd.length);
-}

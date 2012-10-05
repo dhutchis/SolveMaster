@@ -15,7 +15,7 @@ import Master.MasterGame;
 import Master.MasterUtil;
 import Master.MasterSpecific;
 
-version = 2;
+version = 0;
 
 //Guess[] getRepGuessesFromFile(File f, in int depthRepGuess)
 Guess[] getRepGuessesFromFile(File f, in GuessHistory gh)
@@ -97,7 +97,7 @@ void writePossibleSolutions(in Guess[] consisT) {
 
 /// Plays a game of Mastermind using mg, optionally with the aid of precomputed representative guesses in fileRepGuess
 /// (the file goes maxDepthRepGuess representative guesses deep)
-void playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
+uint playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
 	GuessHistory pastGuesses;
 	ResponseHistory pastResponses;
 	Guess[] consisT; // the set of consistent guesses
@@ -132,11 +132,13 @@ void playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
 		consisT = psBest[responseToPartitionIndex(pastResponses[$-1])];
 		
 		// show status
-		writePossibleSolutions(consisT);
+		if (pastResponses[$-1] != [4,0])
+			writePossibleSolutions(consisT);
 	}
 	
 	writeln("Found solution after ",pastGuesses.length," guesses");
 	writeln("Game history: ",mg);
+	return pastGuesses.length;
 }
 
 Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponses, in Guess[] consisT, File fileRepGuess, in int maxDepthRepGuess, out PartitionSet bestGuessPartitionSet) {
@@ -176,7 +178,7 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 		}
 	} else {
 		reprGuesses = computeGuessesToTry(pastGuesses, pastResponses, consisT);
-		writeln("Using many heuristics, reuced guesses to try from 5040 to ",reprGuesses.length);
+		writeln("Using many heuristics, reduced guesses to try from 5040 to ",reprGuesses.length);
 	}
 	
 	foreach (i, rg; reprGuesses) { // for each guess to try
@@ -217,7 +219,9 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 			bestGuessPartitionSet = ps.dup;
 		}
 	}
-	writeln("Choosing: ",guessToString(bestGuess)," entropy=",bestEntropy,"; nonemptyParts=",bestNonemptyParts);
+	write("Choosing: ",guessToString(bestGuess)," entropy=",bestEntropy,"; nonemptyParts=",bestNonemptyParts,"; partition sizes");
+	foreach (ga; bestGuessPartitionSet) write(" ",ga.length);
+	writeln();
 	
 	return bestGuess;
 }

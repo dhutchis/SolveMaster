@@ -42,3 +42,22 @@ ResponseHistory rh = [[0,1],[0,1]];
 rg_noinfo: 499
 rg_info: 258
 Great reduction in representative guess size!
+
+First Resp.	Count	Avg. Game Length
+0.0	360		5.025
+0.1	1440	5.54722
+0.2	1260	5.43968
+0.3	264		5.0303
+0.4	9		3.55556
+1.0	480		5.00625
+1.1	720		5.20694
+1.2	216		4.96296
+1.3	8		3.75
+2.0	180		4.67222
+2.1	72		4.36111
+2.2	6		3.66667
+3.0	24		4.04167
+4.0	1		1
+Total count of guesses: 5040
+Overall average game length: 5.26587
+
