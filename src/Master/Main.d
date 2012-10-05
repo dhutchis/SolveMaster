@@ -76,6 +76,7 @@ void main(string[] args) {
 	int depth = -1;
 	bool genRepGuess = false;
 	bool help = false;
+	//bool interactive = true;
 	
 	//foreach(a; args) writeln(a);
 	getopt(args, std.getopt.config.passThrough,
@@ -83,7 +84,8 @@ void main(string[] args) {
 		"target", &targetString,
 		"depth", &depth,
 		"genRepGuess", &genRepGuess,
-		"help|h|?", &help
+		"help|h|?", &help//,
+		//"interactive|i", &interactive
 	);
 //	writeln("ARGS: ",args);
 //	print_usage_die(args, "repGuessFile:",repGuessFileString,"; target:",targetString,"; depth:",depth,"; genRepGuess:",genRepGuess);

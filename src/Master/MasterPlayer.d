@@ -208,7 +208,7 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 		// is this guess better than our best so far?
 		if (shouldUpdateBestGuess(bestGuess,bestEntropy,bestNonemptyParts, bestGuessPartitionSet,
 								rg,entropy,nonemptyParts, ps)) {
-			version(1) {
+			version(2) {
 				write(" Replacing previous best guess ",guessToString(bestGuess)," with ",guessToString(rg)," entropy=",entropy,"; nonemptyParts=",nonemptyParts,"; partition sizes");
 				foreach (ga; ps) write(" ",ga.length);
 				writeln();
@@ -378,9 +378,9 @@ bool shouldStopEvaluatingGuesses(in Guess bestGuess, in double bestEntropy, in i
 }
 
 bool shouldConsiderGuess(in Guess rg, in Guess bestGuess,in double bestEntropy,in int bestNonemptyParts, in PartitionSet bestPs, in Guess[] consisT) {
-	if (bestNonemptyParts >= 13 && bestPs[responseToPartitionIndex([4,0])].length == 0) {
+	if (bestNonemptyParts >= 14 && bestPs[responseToPartitionIndex([4,0])].length == 0) {
 		if (!canFind(consisT,rg)) {
-			writeln("Rejecting guess ",guessToString(rg)," because it is inconsistent and our best guess has at least 13 nonempty partitions");
+			version(2) writeln("   Rejecting guess ",guessToString(rg)," because it is inconsistent and our best guess has the maximum 14 nonempty partitions");
 			return false;
 		}
 	}
