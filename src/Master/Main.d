@@ -12,6 +12,7 @@ import std.path : baseName;
 import std.getopt;
 //import std.file;
 //import std.contracts;
+//import std.parallelism;
 
 import Master.MasterGame;
 import Master.MasterPlayer;
@@ -95,7 +96,7 @@ void main(string[] args) {
 	
 	//computeAvgGameLength = true;
 	//repGuessFileString = "../repGuess.txt";
-	
+	repGuessFileString="";
 	
 //	writeln("ARGS: ",args);
 //	print_usage_die(args, "repGuessFile:",repGuessFileString,"; target:",targetString,"; depth:",depth,"; genRepGuess:",genRepGuess);
@@ -140,10 +141,14 @@ double computeAverageGameLength(File f, in int maxDepthFile) {
 	else stdout = File(r"\dev\null","w");
 //	scope(exit) stdout = savedstdout;
 	
-	ulong[14] categorySum; categorySum[] = 0;
-	uint[14] categoryCount;
+//	shared string s = f.name();
+	shared ulong[14] categorySum;
+	shared uint[14] categoryCount;
 	int i = 0;
+//	auto taskPool = new TaskPool();
+//	foreach(g; parallel(AllGuessesGenerator(), 20)) {
 	foreach(g; AllGuessesGenerator()) {
+//		auto f2 = File(s, "r");
 		i++;
 		// classify this guess based on the response it generates if the first guess is 0123 
 		auto l = playGame(new MasterGame(g), f, maxDepthFile);
@@ -152,8 +157,9 @@ double computeAverageGameLength(File f, in int maxDepthFile) {
 		categoryCount[idx]++;
 		if (i % (cast(int)(5040*0.1)) == 0)
 			savedstdout.writeln("On guess ",i," / 5040. Computing...");
+//		f2.close();
 	}
-	
+//	int i = 5040;
 	stdout.close();
 	stdout = savedstdout;
 	writeln("FirstResp.  Count  Avg.GameLength");
