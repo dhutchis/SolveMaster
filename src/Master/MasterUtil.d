@@ -58,33 +58,33 @@ string responseToString(Response r) {
 }
 
 
-auto findTransform(in Guess p, in Guess q, in Response[Guess] history)
-{
-	// iterate over all feasible transformations that could take p to q
-	// then check whether a feasible transformation respects the history
-	// return the first one to pass
-	Digit[Digit] substitution;
-	Place[Place] permutation;
-	bool[Place] available; // the places in q that are available for assignment
-	foreach (Place pl; PLACE_MIN..PLACE_MAX+1)
-		available[pl] = true;
-	
-	foreach (Digit start; p) {
-		foreach (Place pl, ref bool avail; available) {
-			if (!avail)
-				continue;
-			avail = false;
-			substitution[start] = q[pl];
-		}
-		foreach (Digit end; q) {
-			//substitution
-		}
-	}
-	
-	//enum allSubstitutions = GenerateSubstitutions!(PLACE_MAX+1);
-	
-	
-} 
+//auto findTransform(in Guess p, in Guess q, in Response[Guess] history)
+//{
+//	// iterate over all feasible transformations that could take p to q
+//	// then check whether a feasible transformation respects the history
+//	// return the first one to pass
+//	Digit[Digit] substitution;
+//	Place[Place] permutation;
+//	bool[Place] available; // the places in q that are available for assignment
+//	foreach (Place pl; PLACE_MIN..PLACE_MAX+1)
+//		available[pl] = true;
+//	
+//	foreach (Digit start; p) {
+//		foreach (Place pl, ref bool avail; available) {
+//			if (!avail)
+//				continue;
+//			avail = false;
+//			substitution[start] = q[pl];
+//		}
+//		foreach (Digit end; q) {
+//			//substitution
+//		}
+//	}
+//	
+//	//enum allSubstitutions = GenerateSubstitutions!(PLACE_MAX+1);
+//	
+//	
+//} 
 
 // create function to return a map of all the possible mappings ret[0] is the first mapping 
 //  ret[0][0] is the mapping of the first character in first mapping
@@ -105,21 +105,21 @@ if (isIntegral!(typeof(n)) && n >= 0) {
 		enum factorial = n*factorial!(n-1);
 }
 
-enum DEBUG_MSG = true;
-void dnoln(A...)(A a)
-if (is(typeof({write(a);}()))) {
-	static if(DEBUG_MSG) {
-		write(a);
-		stdout.flush();
-	}
-}
-void d(A...)(A a)
-if (is(typeof({writeln(a);}()))) {
-	static if(DEBUG_MSG) {
-		writeln(a);
-		stdout.flush();
-	}
-}
+//enum DEBUG_MSG = true;
+//void dnoln(A...)(A a)
+//if (is(typeof({write(a);}()))) {
+//	static if(DEBUG_MSG) {
+//		write(a);
+//		stdout.flush();
+//	}
+//}
+//void d(A...)(A a)
+//if (is(typeof({writeln(a);}()))) {
+//	static if(DEBUG_MSG) {
+//		writeln(a);
+//		stdout.flush();
+//	}
+//}
 
 template permute(A : T[L], T, size_t L) {
 	auto pure permute(in A arr) {
@@ -134,7 +134,7 @@ template permute(A : T[L], T, size_t L) {
 		return allperms;
 	}
 	
-	private pure @safe void doPermute(
+	private pure void doPermute(
 		in A arr, 
 		bool[L] used, 
 		in size_t pos, 
@@ -676,9 +676,9 @@ unittest {
 //		writeln(i,": ",row);
 }
 /// allows for local instantiation
-mixin template DPROP() {
-	void dprop(string a)() { writeln(a,":",typeid(mixin(a)),":",mixin(a)); }
-}
+//mixin template DPROP() {
+//	void dprop(string a)() { writeln(a,":",typeid(mixin(a)),":",mixin(a)); }
+//}
 
 /// insert val, if not already there, into array in sorted position 
 void insertUniqueSorted(T,E)(ref T[] array, in E val)
@@ -856,9 +856,6 @@ unittest {
 //    assert(reprGuess3rd.length == reprGuess2nd.length);
 }
 
-//Guess[] computeSecondTurnReprGuesses() {
-//	return computeRepresentativeGuesses([[0,1,2,3]]);
-//}
 
 /// Makes use of additional information (responses) to further narrow down representative guesses
 Guess[] computeRepresentativeGuesses(in GuessHistory past, in ResponseHistory pastResponses) {
@@ -926,7 +923,7 @@ unittest {
 bool testConsistent(Guess g, Guess x, Response r) {
 	return doCompare(x,g) == r;
 }
-//
+
 //void main() {
 ////	Guess[] past = [[0,1,2,3],[0, 1, 2, 4]];
 ////	writeln("past: ",past);

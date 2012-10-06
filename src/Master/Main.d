@@ -92,6 +92,11 @@ void main(string[] args) {
 		"computeAvgGameLength", &computeAvgGameLength//,
 		//"interactive|i", &interactive
 	);
+	
+	//computeAvgGameLength = true;
+	//repGuessFileString = "../repGuess.txt";
+	
+	
 //	writeln("ARGS: ",args);
 //	print_usage_die(args, "repGuessFile:",repGuessFileString,"; target:",targetString,"; depth:",depth,"; genRepGuess:",genRepGuess);
 	if (help || args.length > 1) print_usage_die(args,"");
