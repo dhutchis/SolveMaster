@@ -82,3 +82,21 @@ Overall average game length: 5.24286
 Benchmark results: 2456606 ms = 40.94 min on regular build
 Benchmark results: 1929297 ms = 32.15495 min on production build
 
+this is the time it takes if we just compute all guesses, so no use of representative guesses or absent/uncalled digit heuristics...
+0.0	360   	5.03056
+0.1	1440   	5.54792
+0.2	1260   	5.42222
+0.3	264   	4.87879
+0.4	9   	3.55556
+1.0	480   	4.99792
+1.1	720   	5.18333
+1.2	216   	4.77315
+1.3	8   	3.75
+2.0	180   	4.7
+2.1	72   	4.36111
+2.2	6   	3.66667
+3.0	24   	4.04167
+4.0	1   	1
+Total count of guesses: 5040
+Overall average game length: 5.24286
+Benchmark results: 21140200 ms = 352.33667 min on production build

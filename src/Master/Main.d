@@ -76,6 +76,7 @@ body {
 
 
 void main(string[] args) {
+//	writeln(AllGuesses);
 	string targetString = "";
 	string repGuessFileString = "";
 	int depth = -1;
@@ -101,6 +102,16 @@ void main(string[] args) {
 	//computeAvgGameLength = true;
 	//repGuessFileString = "../repGuess.txt";
 //	repGuessFileString="";
+	
+	repGuessFileString = "repGuess.txt";
+	File f2 = File(repGuessFileString, "r");
+//	writeln("line: ",f2.readln());
+	assert(std.string.stripRight(f2.readln()) == "2");
+	f2.rewind();
+	scope(exit) f2.close();
+	GuessChain gc = getAllRepGuessesFromFile(f2);
+	writeln(gc);
+	return;
 	
 //	writeln("ARGS: ",args);
 //	print_usage_die(args, "repGuessFile:",repGuessFileString,"; target:",targetString,"; depth:",depth,"; genRepGuess:",genRepGuess);
@@ -154,7 +165,7 @@ void main(string[] args) {
 }
 
 double computeAverageGameLength(File f, in int maxDepthFile) {
-	writeln("about to start"); stdout.flush();
+	writeln("about to start computing average game length"); stdout.flush();
 	File savedstdout = stdout;
 	version(Windows) stdout = File("NUL","w");
 	else stdout = File(r"\dev\null","w");
@@ -166,7 +177,7 @@ double computeAverageGameLength(File f, in int maxDepthFile) {
 	int i = 0;
 //	auto taskPool = new TaskPool();
 //	foreach(g; parallel(AllGuessesGenerator(), 20)) {
-	foreach(g; AllGuessesGenerator()) {
+	foreach(g; AllGuesses) {
 //		auto f2 = File(s, "r");
 		i++;
 		//savedstdout.write(i,' '); savedstdout.flush();

@@ -15,7 +15,7 @@ import Master.MasterGame;
 import Master.MasterUtil;
 import Master.MasterSpecific;
 
-version = 0;
+//version = 0;
 
 //Guess[] getRepGuessesFromFile(File f, in int depthRepGuess)
 Guess[] getRepGuessesFromFile(File f, in GuessHistory gh)
@@ -84,6 +84,91 @@ void findGuessInFile(File f, in Guess guess, in int depth, in GuessHistory gh) {
 	}
 }
 
+//template staticArrayNDeep(B, int Size, int Depth) 
+//  if ( isIntegral!Size && isIntegral!Depth && Depth >= 0 && Size >= 0) {
+//	static if (N == 0)
+//		alias B staticArrayNDeep;
+//	else
+//		alias staticArrayNDeep!(B[Size],Size,Depth-1) staticArrayNDeep;
+//} staticArrayNDeep!(Guess,14,Depth)
+
+class GuessChain {
+	GuessChain[Guess] map;
+	
+	this() {}
+	this(Guess g, GuessChain gc) { map[g] = gc; }
+	
+	string toString() {
+		return text(map);
+	}
+}
+
+GuessChain getAllRepGuessesFromFile(File f)
+in {
+	assert( f.isOpen() ); 
+	assert( f.tell == 0 ); // we're at the beginning of the file
+}
+out {
+	assert (f.tell == 0); // file is put back at the beginning
+}
+body {
+	// throw away first line and second line (which is just 0123)
+	string firstLine = f.readln();
+	int maxDepth = to!int(std.string.stripRight(firstLine)); // kill newline
+	
+	char[] currentline;
+	f.readln(currentline);
+	int currentDepth = 0;
+	auto ret = recurseReadRepGuessFromFile(f, currentline, currentDepth);
+	f.rewind();
+	return ret;
+}
+
+GuessChain recurseReadRepGuessFromFile(File f, ref char[] currentline, ref int currentDepth) {
+//	assert ( {
+//		int chkd = 0;
+//		while(firstline.front == ' ') {
+//			chkd++;
+//			line.popFront();
+//		}
+//		return chkd;
+//	}() == currentDepth, "bad current depth");
+
+	int myDepth = currentDepth;
+	GuessChain gc = new GuessChain();
+	
+	do { 
+		Guess g = stringToGuess(currentline[currentDepth .. currentDepth+4]);
+		gc.map[g] = null;
+		
+		size_t bytes_read = f.readln(currentline);
+		if (bytes_read == 0) { // eof
+			currentDepth = -1;
+			return gc;
+		}
+		
+		currentDepth = 0;
+		foreach (i, c; currentline) {
+			if (c == ' ')
+				currentDepth++;
+			else {
+				//guessIdx = i;
+				break;
+			}
+		}
+		
+		if (currentDepth > myDepth) {
+			assert(currentDepth == myDepth+1, "bad file format");
+			gc.map[g] = recurseReadRepGuessFromFile(f, currentline, currentDepth);
+		}
+		
+		
+	} while (currentDepth >= myDepth);
+	
+	return gc;
+	
+}
+
 void writePossibleSolutions(in Guess[] consisT) {
 	write("[ ",consisT.length," ] Consistent solutions:");
 	if (consisT.length < 20)
@@ -110,7 +195,7 @@ uint playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
 	//writeln("After first guess: ",mg);
 	
 	// fill consisT with valid possible solutions
-	foreach(g; AllGuessesGenerator())
+	foreach(g; AllGuesses)
 		if (testConsistent(g, pastGuesses[0], pastResponses[0]))
 			consisT ~= g;
 	writePossibleSolutions(consisT);
@@ -161,7 +246,9 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 	Guess bestGuess;
 	double bestEntropy=0;
 	int bestNonemptyParts=0;
-	Guess[] reprGuesses; // the guesses we will evaluate
+	Guess[] reprGuesses;
+//	const Guess[] reprGuesses = AllGuesses[]; // the guesses we will evaluate
+//	auto reprGuesses = AllGuesses;
 	
 	//  Do this to compute the representative guesses from scratch
 	//latter statement gets them from a precomputed file
@@ -177,8 +264,9 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 		}
 	} else {
 		reprGuesses = computeGuessesToTry(pastGuesses, pastResponses, consisT);
-		writeln("Using many heuristics, reduced guesses to try from 5040 to ",reprGuesses.length);
+		writeln("Using digit analysis heuristics, reduced guesses to try from 5040 to ",reprGuesses.length);
 	}
+	//reprGuesses = AllGuesses[];
 	
 	foreach (i, rg; reprGuesses) { // for each guess to try
 		// should we even consider this guess? (even more alpha/beta pruning)
@@ -200,7 +288,7 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 		// compute entropy, most parts heuristics
 		double entropy = 0;
 		computeEntropy(consisT.length,ps,entropy);
-		version(3) {
+		version(2) {
 			write(" Guess ",guessToString(rg)," has entropy=",entropy,"; nonemptyParts=",nonemptyParts,"; partition sizes");
 			foreach (ga; ps) write(" ",ga.length);
 			writeln();
@@ -209,7 +297,7 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 		// is this guess better than our best so far?
 		if (shouldUpdateBestGuess(bestGuess,bestEntropy,bestNonemptyParts, bestGuessPartitionSet,
 								rg,entropy,nonemptyParts, ps)) {
-			version(2) {
+			version(1) {
 				write(" Replacing previous best guess ",guessToString(bestGuess)," with ",guessToString(rg)," entropy=",entropy,"; nonemptyParts=",nonemptyParts,"; partition sizes");
 				foreach (ga; ps) write(" ",ga.length);
 				writeln();
@@ -242,7 +330,7 @@ Guess[] computeGuessesToTry(in GuessHistory pastGuesses, in ResponseHistory past
 					uncalledDigits = getUncalledDigits(pastGuesses);
 	Digit[NUM_PLACE] lowestUncalledDigits = getLowestSortedUncalledDigits(uncalledDigits);
 	
-	guessGenLoop: foreach (g; AllGuessesGenerator()) {
+	guessGenLoop: foreach (g; AllGuesses) {
 		if (canFind(pastGuesses, g)) // don't include a past guess
 			continue;
 		

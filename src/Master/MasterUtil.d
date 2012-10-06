@@ -172,6 +172,10 @@ unittest {
 	static assert(is(staticArrayBaseType!(float[7][6][5]) == float));
 	static assert(is(staticArrayBaseType!(Object[2][2]) == Object));
 }
+template staticArrayFirstType(T : U[N], U, size_t N)
+{
+	alias U staticArrayFirstType;
+}
 
 
 pure @safe void fill(T, size_t L, B = staticArrayBaseType!(T[L]))
@@ -473,7 +477,7 @@ private:
 	
 	bool _empty = false;
 		
-	/// Setup given past guesses but no response information
+	/// Setup given past guesses without additional response information
 	void doInit(in Guess p, in Guess q, in Guess[] pastGuesses) {
 		fill(validSubst, true);
 		fill(substMap, cast(Digit)(DIGIT_MIN-1));    // -2 implies free (can map to any other free var)
@@ -822,7 +826,7 @@ public:
 /// Allows for trial of a minimum set of parition instances
 Guess[] computeRepresentativeGuesses(in GuessHistory past) {
 	Guess[] reprGuesses = past.dup; // past guesses are always representative
-	foreach (g; AllGuessesGenerator()) {
+	foreach (g; AllGuesses) {
 		bool equiv = false;
 		foreach (reprG; reprGuesses) {
 			if (equiv = findTransform(g,reprG,past),equiv)
@@ -860,12 +864,13 @@ unittest {
 
 
 /// Makes use of additional information (responses) to further narrow down representative guesses
-Guess[] computeRepresentativeGuesses(in GuessHistory past, in ResponseHistory pastResponses) {
-	return computeRepresentativeGuessesNarrowing(past, pastResponses, AllGuessesGenerator());
+auto computeRepresentativeGuesses(in GuessHistory past, in ResponseHistory pastResponses) {
+	return computeRepresentativeGuessesNarrowing(past, pastResponses, AllGuesses);
 }
 	
-Guess[] computeRepresentativeGuessesNarrowing(Range)(in GuessHistory past, in ResponseHistory pastResponses, Range reprGuessesRange)
- if (isInputRange!Range && is(ElementType!Range == Guess)) {	
+inout Guess[] computeRepresentativeGuessesNarrowing(Range)(in GuessHistory past, in ResponseHistory pastResponses, inout Range reprGuessesRange)
+ if ((isInputRange!Range && is(ElementType!Range == Guess))
+ 		|| (isStaticArray!Range && is(staticArrayFirstType!Range == Guess))) {	
 	Guess[] reprGuesses = past.dup; // past guesses are always representative
 	// group pastGuesses into sets with same responses
 	const GuessHistory[] pastGrouped = groupPastGuessesBySameResponse(past, pastResponses);
@@ -938,7 +943,18 @@ bool testConsistent(Guess g, Guess x, Response r) {
 //	
 //}
 
+/// Generated at compile time!
 enum Response[14] AllResponses = [[0,0],[0,1],[0,2],[0,3],[0,4],[1,0],[1,1],[1,2],[1,3],[2,0],[2,1],[2,2],[3,0],[4,0]];
+/// okay, so this is a bit large to keep at compile time.  Do it once at run time!
+immutable Guess[5040] AllGuesses = { 
+	Guess[5040] gs;
+	uint i = 0; 
+	foreach(const Guess g; AllGuessesGenerator()) { 
+		gs[i] = g;
+		i++; 
+	}
+	return gs;
+}();
 
 Guess stringToGuess(const char[] s) {
 	Guess g;

@@ -1,5 +1,5 @@
 -od"bin"
--of"bin\SolveMaster.exe"
+-of"bin\SolveMaster2.exe"
 
 -I""
 
@@ -8,7 +8,3 @@
 "src\Master\MasterPlayer.d"
 "src\Master\MasterSpecific.d"
 "src\Master\MasterUtil.d"
-
-
--wi
--release -O -inline -noboundscheck
