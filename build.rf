@@ -11,3 +11,4 @@
 
 
 -wi
+-release -O -inline -noboundscheck

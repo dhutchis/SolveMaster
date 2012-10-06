@@ -171,8 +171,7 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 	if (pastGuesses.length <= maxDepthRepGuess) { // if we have precomputed representative guess information
 		reprGuesses = getRepGuessesFromFile(fileRepGuess, pastGuesses); // get the info
 		writeln("From precomputed file: ",reprGuesses.length," representative guesses (narrowed down from 5040)");
-		if (pastGuesses.length > 3) { // for turns 3 and up, narrow down the reprGuesses based on whether we had a repeated response
-			// todo: only do this if we had a repeated response
+		if (pastGuesses.length > 3 && haveRepeatedResponses(pastResponses)) { // for turns 3 and up, narrow down the reprGuesses based on whether we had a repeated response
 			reprGuesses = computeRepresentativeGuessesNarrowing(pastGuesses, pastResponses, reprGuesses);
 			writeln("\tBased on repeated responses in game history, reduced the number of representative guesses to ",reprGuesses.length); 
 		}
@@ -224,6 +223,13 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 	writeln();
 	
 	return bestGuess;
+}
+
+bool haveRepeatedResponses(in ResponseHistory pastResponses) {
+	foreach(i, r; pastResponses)
+		if (canFind(pastResponses[i .. $], r))
+			return true;
+	return false;
 }
 
 /// Use this after it becomes computationally expensive to calculate the minimal set of representative guesses
@@ -313,14 +319,14 @@ PartitionSet createPartition(in Guess rg, in Guess[] consisT, in int bestNonempt
 	foreach (i, consis; consisT) {
 		auto a = consisT.length - i;
 		auto b = bestNonemptyParts - nonemptyParts;
-//		writeln("a(",typeid(a),")",a," < b(",typeid(b),")",b," is ",a<b); 
-		if (cast(int)(consisT.length - i) < bestNonemptyParts - nonemptyParts) { // linked to shouldUpdateBestGuess
-			version(4) writeln("   Stopped considering ",guessToString(rg)," early because it cannot reach as many nonempty paritions as the current best");//
-			//i:",i," consisT.length",consisT.length," bestNonemptyParts:",bestNonemptyParts," nonemptyParts:",nonemptyParts," consisT.length - i:",
-			//consisT.length - i," bestNonemptyParts-nonemptyParts:",bestNonemptyParts - nonemptyParts, " eval:",(consisT.length - i) < (bestNonemptyParts - nonemptyParts),"   huh?",263<-1);
-			ps = PartitionSet.init;
-			break;
-		}
+		//writeln("a(",typeid(a),")",a," < b(",typeid(b),")",b," is ",a<b); 
+//		if (cast(int)(consisT.length - i) < bestNonemptyParts - nonemptyParts) { // linked to shouldUpdateBestGuess
+//			version(4) writeln("   Stopped considering ",guessToString(rg)," early because it cannot reach as many nonempty paritions as the current best");//
+//			//i:",i," consisT.length",consisT.length," bestNonemptyParts:",bestNonemptyParts," nonemptyParts:",nonemptyParts," consisT.length - i:",
+//			//consisT.length - i," bestNonemptyParts-nonemptyParts:",bestNonemptyParts - nonemptyParts, " eval:",(consisT.length - i) < (bestNonemptyParts - nonemptyParts),"   huh?",263<-1);
+//			ps = PartitionSet.init;
+//			break;
+//		}
 		Response r = doCompare(rg,consis); // 4.0 for rg == consis
 		int idx = responseToPartitionIndex(r);
 		if (ps[idx].length == 0)
@@ -342,7 +348,7 @@ void computeEntropy(in double n, in PartitionSet ps, out double entropy) {
 //		nonemptyParts++;
 	}
 //	writeln("\tentropy log(",n,")-(1/",n,")*",entropy," = ",log(n)," - ",(1.0/n)*entropy," = ",log(n) - (1.0/n)*entropy);
-	version(1)
+	//version(1)
 		entropy = log(n) + (1.0/n)*entropy; // speedup: don't need to calculate actual entropy; instead maximize the summed negative entropy (so more positive is preferred)
 	
 }
@@ -353,9 +359,13 @@ bool shouldUpdateBestGuess(in Guess bestGuess, in double bestEntropy, in int bes
 	in Guess rg,in double entropy,in int nonemptyParts, in PartitionSet newPS) {
 	// Current implementation: rank by mostParts first, then by entropy as second priority
 	// Also, if same # nonempty parts but one is consistent while the other is not, take the consistent one (we may actually guess it right!)
-	return nonemptyParts > bestNonemptyParts || 
-		(nonemptyParts == bestNonemptyParts && (entropy > bestEntropy || 
-							(bestPS[responseToPartitionIndex([4,0])].empty && !newPS[responseToPartitionIndex([4,0])].empty)));
+//	return nonemptyParts > bestNonemptyParts || 
+//		(nonemptyParts == bestNonemptyParts && (entropy > bestEntropy || 
+//							(bestPS[responseToPartitionIndex([4,0])].empty && !newPS[responseToPartitionIndex([4,0])].empty)));
+	
+	// New implementation: Use entropy to guide guess selection.  If same entropy, use nonempty parts and consistent guessing as tiebreaker criteria.
+	return (entropy > bestEntropy) ||
+		(entropy == bestEntropy && (nonemptyParts > bestNonemptyParts || ( bestPS[responseToPartitionIndex([4,0])].empty && !newPS[responseToPartitionIndex([4,0])].empty) ));
 }
 
 // Return true if this guess is so good that we should stop evaluating representative guesses and choose this one as the best

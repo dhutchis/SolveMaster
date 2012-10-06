@@ -13,6 +13,7 @@ import std.getopt;
 //import std.file;
 //import std.contracts;
 //import std.parallelism;
+import std.datetime;
 
 import Master.MasterGame;
 import Master.MasterPlayer;
@@ -25,10 +26,10 @@ import Master.MasterUtil;
 void print_usage_die(A...)(string[] args, A msg) 
 	if (is(typeof({write(msg);}()))) {
 	writeln("Usage: ");
-	writeln(baseName(args[0]), " [--repGuessFile rep_guess_file] [--target codeWord | --computeAvgGameLength]\n\tStarts a new game with "
+	writeln(baseName(args[0]), " [--repGuessFile rep_guess_file] [--target codeWord | --computeAvgGameLength] [--benchmark]\n\tStarts a new game with "
 		"the specified target code (or a random one if unspecified) using the representative guess file.\n\t"
 		"If computeAvgGameLength is specified, outputs a table with the average game length classified according to first response.");
-	writeln(baseName(args[0]), " --genRepGuess --repGuessFile rep_guess_file --depth depth_level\n\tGenerates a representative "
+	writeln(baseName(args[0]), " --genRepGuess --repGuessFile rep_guess_file --depth depth_level [--benchmark]\n\tGenerates a representative "
 		"guess file x levels deep and saves it to the file"); 
 	writeln(msg);
 	exit(0);
@@ -82,6 +83,8 @@ void main(string[] args) {
 	bool help = false;
 	//bool interactive = true;
 	bool computeAvgGameLength = false;
+	bool do_benchmark = false;
+	TickDuration benchmark_result;
 	
 	//foreach(a; args) writeln(a);
 	getopt(args, std.getopt.config.passThrough,
@@ -90,13 +93,14 @@ void main(string[] args) {
 		"depth", &depth,
 		"genRepGuess", &genRepGuess,
 		"help|h|?", &help,
-		"computeAvgGameLength", &computeAvgGameLength//,
+		"computeAvgGameLength", &computeAvgGameLength,
+		"benchmark", &do_benchmark//,
 		//"interactive|i", &interactive
 	);
 	
 	//computeAvgGameLength = true;
 	//repGuessFileString = "../repGuess.txt";
-	repGuessFileString="";
+//	repGuessFileString="";
 	
 //	writeln("ARGS: ",args);
 //	print_usage_die(args, "repGuessFile:",repGuessFileString,"; target:",targetString,"; depth:",depth,"; genRepGuess:",genRepGuess);
@@ -111,7 +115,10 @@ void main(string[] args) {
 		GuessHistory guessHistory = [[0,1,2,3]]; // initial guess is always 0123
 		f.writeln(depth);
 		f.writeln(guessToString(guessHistory[0]));
-		recurseSaveRepGuess(f, depth, guessHistory);
+		if (do_benchmark)
+			benchmark_result = benchmark!({recurseSaveRepGuess(f, depth, guessHistory);})(1) [0];
+		else
+			recurseSaveRepGuess(f, depth, guessHistory);
 		f.close();
 		writeln("Successfully saved representative guesses to depth ",depth," to file ",repGuessFileString);
 		
@@ -120,43 +127,56 @@ void main(string[] args) {
 		File f = repGuessFileString.empty() ? File.init : File(repGuessFileString);
 		int maxDepthFile = repGuessFileString.empty() ? 0 : getMaxDepthFile(f);
 		if (computeAvgGameLength) {
-			computeAverageGameLength(f,maxDepthFile);
+			if (do_benchmark)
+				benchmark_result = benchmark!({computeAverageGameLength(f,maxDepthFile);})(1) [0];
+			else
+				computeAverageGameLength(f,maxDepthFile);
 		} else {
 			if (!targetString.empty()) {
 				// use the given target
 				Guess soln = stringToGuess(targetString);
-				playGame(new MasterGame( soln ), f, maxDepthFile);
+				if (do_benchmark)
+					benchmark_result = benchmark!({playGame(new MasterGame( soln ), f, maxDepthFile);})(1) [0];
+				else
+					playGame(new MasterGame( soln ), f, maxDepthFile);
 			} else {
 				// use random target
-				playGame(new MasterGame(), f, maxDepthFile);
+				if (do_benchmark)
+					benchmark_result = benchmark!({playGame(new MasterGame(), f, maxDepthFile);})(1) [0];
+				else
+					playGame(new MasterGame(), f, maxDepthFile);
 			}
 		}
 	}
+	if (do_benchmark)
+		writeln("Benchmark results: ",benchmark_result.msecs()," ms");
 	
 }
 
 double computeAverageGameLength(File f, in int maxDepthFile) {
+	writeln("about to start"); stdout.flush();
 	File savedstdout = stdout;
 	version(Windows) stdout = File("NUL","w");
 	else stdout = File(r"\dev\null","w");
 //	scope(exit) stdout = savedstdout;
 	
 //	shared string s = f.name();
-	shared ulong[14] categorySum;
-	shared uint[14] categoryCount;
+	ulong[14] categorySum;
+	uint[14] categoryCount;
 	int i = 0;
 //	auto taskPool = new TaskPool();
 //	foreach(g; parallel(AllGuessesGenerator(), 20)) {
 	foreach(g; AllGuessesGenerator()) {
 //		auto f2 = File(s, "r");
 		i++;
+		//savedstdout.write(i,' '); savedstdout.flush();
 		// classify this guess based on the response it generates if the first guess is 0123 
 		auto l = playGame(new MasterGame(g), f, maxDepthFile);
 		auto idx = responseToPartitionIndex(doCompare(g,[0,1,2,3]));
 		categorySum[ idx ] += l;
 		categoryCount[idx]++;
 		if (i % (cast(int)(5040*0.1)) == 0)
-			savedstdout.writeln("On guess ",i," / 5040. Computing...");
+			{savedstdout.write("\nOn guess ",i," / 5040. Computing..."); savedstdout.flush();}
 //		f2.close();
 	}
 //	int i = 5040;

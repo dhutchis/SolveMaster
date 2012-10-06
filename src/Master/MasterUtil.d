@@ -322,11 +322,13 @@ if (is(typeof(op(T)) == bool))  {
 /// If f exists, p and q are in the same representative class -- guessing p will produce the same parition splits as guessing q
 bool findTransform(in Guess p, in Guess q, in GuessHistory pastGuesses)
 {
+	if (p == q) // trivial case 
+		return true;
 	foreach (subst; validSubstitutionStream(p,q,pastGuesses)) {
 		auto psub = applySubstitution(p,subst);
 		auto perm = getPermMap(psub,q); 
 //		d("p",p," =subst",subst,"=> ",psub," =perm",perm,"=> ",q);
-		assert(applyPermutation(psub,perm)==q); // transformation p->q guranteed to exist
+		assert(applyPermutation(psub,perm)==q,"no transform from "~text(p)~" to "~text(q)); // transformation p->q guranteed to exist
 												// the transformation also taking each pastGuess to itself is not guranteed
 		// try the permutation on every past guess.  Success on all means we found a transform: subst composed with perm
 		bool ret = true;
