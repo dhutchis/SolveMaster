@@ -103,15 +103,15 @@ void main(string[] args) {
 	//repGuessFileString = "../repGuess.txt";
 //	repGuessFileString="";
 	
-	repGuessFileString = "repGuess.txt";
-	File f2 = File(repGuessFileString, "r");
-//	writeln("line: ",f2.readln());
-	assert(std.string.stripRight(f2.readln()) == "2");
-	f2.rewind();
-	scope(exit) f2.close();
-	GuessChain gc = getAllRepGuessesFromFile(f2);
-	writeln(gc);
-	return;
+//	repGuessFileString = "repGuess.txt";
+//	File f2 = File(repGuessFileString, "r");
+////	writeln("line: ",f2.readln());
+//	assert(std.string.stripRight(f2.readln()) == "2");
+//	f2.rewind();
+//	scope(exit) f2.close();
+//	GuessChain gc = getAllRepGuessesFromFile(f2);
+//	writeln(gc);
+//	return;
 	
 //	writeln("ARGS: ",args);
 //	print_usage_die(args, "repGuessFile:",repGuessFileString,"; target:",targetString,"; depth:",depth,"; genRepGuess:",genRepGuess);
@@ -134,28 +134,34 @@ void main(string[] args) {
 		writeln("Successfully saved representative guesses to depth ",depth," to file ",repGuessFileString);
 		
 	} else {
-		// let's play a game - get the max depth of the repr guesses from the file if it's available
-		File f = repGuessFileString.empty() ? File.init : File(repGuessFileString);
-		int maxDepthFile = repGuessFileString.empty() ? 0 : getMaxDepthFile(f);
+		// let's play a game - load in the repr guesses from the file if it's available
+		GuessChain gc = null;
+		int maxDepthFile = 0;
+		if (!repGuessFileString.empty()) {
+			File f = File(repGuessFileString, "r");
+			gc = getAllRepGuessesFromFile(f, maxDepthFile); // second param is by reference
+			f.close();
+		}
+		
 		if (computeAvgGameLength) {
 			if (do_benchmark)
-				benchmark_result = benchmark!({computeAverageGameLength(f,maxDepthFile);})(1) [0];
+				benchmark_result = benchmark!({computeAverageGameLength(gc,maxDepthFile);})(1) [0];
 			else
-				computeAverageGameLength(f,maxDepthFile);
+				computeAverageGameLength(gc,maxDepthFile);
 		} else {
 			if (!targetString.empty()) {
 				// use the given target
 				Guess soln = stringToGuess(targetString);
 				if (do_benchmark)
-					benchmark_result = benchmark!({playGame(new MasterGame( soln ), f, maxDepthFile);})(1) [0];
+					benchmark_result = benchmark!({playGame(new MasterGame( soln ), gc, maxDepthFile);})(1) [0];
 				else
-					playGame(new MasterGame( soln ), f, maxDepthFile);
+					playGame(new MasterGame( soln ), gc, maxDepthFile);
 			} else {
 				// use random target
 				if (do_benchmark)
-					benchmark_result = benchmark!({playGame(new MasterGame(), f, maxDepthFile);})(1) [0];
+					benchmark_result = benchmark!({playGame(new MasterGame(), gc, maxDepthFile);})(1) [0];
 				else
-					playGame(new MasterGame(), f, maxDepthFile);
+					playGame(new MasterGame(), gc, maxDepthFile);
 			}
 		}
 	}
@@ -164,7 +170,7 @@ void main(string[] args) {
 	
 }
 
-double computeAverageGameLength(File f, in int maxDepthFile) {
+double computeAverageGameLength(in GuessChain gc, in int maxDepthFile) {
 	writeln("about to start computing average game length"); stdout.flush();
 	File savedstdout = stdout;
 	version(Windows) stdout = File("NUL","w");
@@ -182,7 +188,7 @@ double computeAverageGameLength(File f, in int maxDepthFile) {
 		i++;
 		//savedstdout.write(i,' '); savedstdout.flush();
 		// classify this guess based on the response it generates if the first guess is 0123 
-		auto l = playGame(new MasterGame(g), f, maxDepthFile);
+		auto l = playGame(new MasterGame(g), gc, maxDepthFile);
 		auto idx = responseToPartitionIndex(doCompare(g,[0,1,2,3]));
 		categorySum[ idx ] += l;
 		categoryCount[idx]++;

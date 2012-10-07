@@ -103,7 +103,7 @@ class GuessChain {
 	}
 }
 
-GuessChain getAllRepGuessesFromFile(File f)
+GuessChain getAllRepGuessesFromFile(File f, out int maxDepth)
 in {
 	assert( f.isOpen() ); 
 	assert( f.tell == 0 ); // we're at the beginning of the file
@@ -114,7 +114,7 @@ out {
 body {
 	// throw away first line and second line (which is just 0123)
 	string firstLine = f.readln();
-	int maxDepth = to!int(std.string.stripRight(firstLine)); // kill newline
+	maxDepth = to!int(std.string.stripRight(firstLine)); // kill newline
 	
 	char[] currentline;
 	f.readln(currentline);
@@ -166,7 +166,12 @@ GuessChain recurseReadRepGuessFromFile(File f, ref char[] currentline, ref int c
 	} while (currentDepth >= myDepth);
 	
 	return gc;
-	
+}
+
+Guess[] getReprGuessesFromChainGivenHistory(in GuessChain gc, in GuessHistory past) {
+	if (past.empty)
+		return gc.map.keys;
+	return getReprGuessesFromChainGivenHistory(gc.map[past.front], past[1 .. $]);
 }
 
 void writePossibleSolutions(in Guess[] consisT) {
@@ -180,9 +185,9 @@ void writePossibleSolutions(in Guess[] consisT) {
 }
 
 
-/// Plays a game of Mastermind using mg, optionally with the aid of precomputed representative guesses in fileRepGuess
+/// Plays a game of Mastermind using mg, optionally with the aid of precomputed representative guesses
 /// (the file goes maxDepthRepGuess representative guesses deep)
-uint playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
+uint playGame(MasterGame mg, in GuessChain gc, in int maxDepthRepGuess) {
 	GuessHistory pastGuesses;
 	ResponseHistory pastResponses;
 	Guess[] consisT; // the set of consistent guesses
@@ -203,7 +208,7 @@ uint playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
 	// while we didn't guess correctly yet
 	while (pastResponses[$-1] != [4,0]) {
 		PartitionSet psBest;
-		Guess bestGuess = findBestGuess(pastGuesses, pastResponses, consisT, fileRepGuess, maxDepthRepGuess, psBest);
+		Guess bestGuess = findBestGuess(pastGuesses, pastResponses, consisT, gc, maxDepthRepGuess, psBest);
 		
 		//attempt the best guess
 		pastGuesses ~= bestGuess;
@@ -226,7 +231,7 @@ uint playGame(MasterGame mg, File fileRepGuess, in int maxDepthRepGuess) {
 	return pastGuesses.length;
 }
 
-Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponses, in Guess[] consisT, File fileRepGuess, in int maxDepthRepGuess, out PartitionSet bestGuessPartitionSet) {
+Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponses, in Guess[] consisT, in GuessChain gc, in int maxDepthRepGuess, out PartitionSet bestGuessPartitionSet) {
 	// before doing anything, if there is only 1 consistent guess, guess it!
 	if (consisT.length == 1) {
 		writeln("Only 1 consistent guess: ",guessToString(consisT[0]));
@@ -256,7 +261,7 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 	//	reprGuesses = computeRepresentativeGuesses(pastGuesses, pastResponses); // pass response information available at runtime for reduction in reprGuesses size
 	
 	if (pastGuesses.length <= maxDepthRepGuess) { // if we have precomputed representative guess information
-		reprGuesses = getRepGuessesFromFile(fileRepGuess, pastGuesses); // get the info
+		reprGuesses = getReprGuessesFromChainGivenHistory(gc, pastGuesses); // get the info
 		writeln("From precomputed file: ",reprGuesses.length," representative guesses (narrowed down from 5040)");
 		if (pastGuesses.length > 3 && haveRepeatedResponses(pastResponses)) { // for turns 3 and up, narrow down the reprGuesses based on whether we had a repeated response
 			reprGuesses = computeRepresentativeGuessesNarrowing(pastGuesses, pastResponses, reprGuesses);
