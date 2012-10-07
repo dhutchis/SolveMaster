@@ -98,7 +98,7 @@ class GuessChain {
 	this() {}
 	this(Guess g, GuessChain gc) { map[g] = gc; }
 	
-	string toString() {
+	override string toString() {
 		return text(map);
 	}
 }
@@ -410,8 +410,8 @@ PartitionSet createPartition(in Guess rg, in Guess[] consisT, in int bestNonempt
 	PartitionSet ps;
 	
 	foreach (i, consis; consisT) {
-		auto a = consisT.length - i;
-		auto b = bestNonemptyParts - nonemptyParts;
+//		auto a = consisT.length - i;
+//		auto b = bestNonemptyParts - nonemptyParts;
 		//writeln("a(",typeid(a),")",a," < b(",typeid(b),")",b," is ",a<b); 
 //		if (cast(int)(consisT.length - i) < bestNonemptyParts - nonemptyParts) { // linked to shouldUpdateBestGuess
 //			version(4) writeln("   Stopped considering ",guessToString(rg)," early because it cannot reach as many nonempty paritions as the current best");//
@@ -471,15 +471,19 @@ bool shouldStopEvaluatingGuesses(in Guess bestGuess, in double bestEntropy, in i
 	
 	// if we find a guess that divides consisT into partitions of all size 1 and this guess is consistent, it's clearly the winner.  We will win next turn (and maybe this one).
 	// only possible if consisT.length is <= 14
-	if (consisT.length <= 14 && !bestGuessPartitionSet[responseToPartitionIndex([4,0])].empty) {
-		bool ret = true;
-		foreach(partition; bestGuessPartitionSet)
-			if (ret = partition.length == 1, !ret)
-				break;
-		if (ret)
-			writeln("Stopping consideration of guesses and accepting ",guessToString(bestGuess)," because it is consistent and divides the consistent guesses into paritions all of size 1");
-		return ret;
-	}
+	// ** This is a useless enhancement - it never actually speeds up a game.  Tested and proven.
+//	if (consisT.length <= 14 && !bestGuessPartitionSet[responseToPartitionIndex([4,0])].empty) {
+//		bool ret = true;
+//		foreach(partition; bestGuessPartitionSet)
+//			if (ret = partition.length == 1, !ret)
+//				break;
+//		if (ret) {
+//			writeln("Stopping consideration of guesses and accepting ",guessToString(bestGuess)," because it is consistent and divides the consistent guesses into paritions all of size 1");
+//			stderr.writeln("STOPPED CONSIDERATION EARLY");
+//			ret = false;
+//			}
+//		return ret;
+//	}
 	
 	return false;
 }

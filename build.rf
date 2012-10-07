@@ -8,3 +8,7 @@
 "src\Master\MasterPlayer.d"
 "src\Master\MasterSpecific.d"
 "src\Master\MasterUtil.d"
+
+
+-release -O -inline -noboundscheck
+-version=0

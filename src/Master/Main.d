@@ -20,8 +20,8 @@ import Master.MasterPlayer;
 import Master.MasterSpecific;
 import Master.MasterUtil;
 
-// --genRepGuess --repGuessFile repGuess.txt --depth 2
 // Production compiler switches: -release -O -inline -noboundscheck
+// Version compiler switch -version=1 (higher = more output)
 
 void print_usage_die(A...)(string[] args, A msg) 
 	if (is(typeof({write(msg);}()))) {
@@ -90,12 +90,12 @@ void main(string[] args) {
 	//foreach(a; args) writeln(a);
 	getopt(args, std.getopt.config.passThrough,
 		"repGuessFile|f", &repGuessFileString,
-		"target", &targetString,
-		"depth", &depth,
+		"target|t", &targetString,
+		"depth|d", &depth,
 		"genRepGuess", &genRepGuess,
 		"help|h|?", &help,
 		"computeAvgGameLength", &computeAvgGameLength,
-		"benchmark", &do_benchmark//,
+		"benchmark|b", &do_benchmark//,
 		//"interactive|i", &interactive
 	);
 	
