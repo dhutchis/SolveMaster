@@ -35,7 +35,7 @@ alias Guess[][14] PartitionSet;
 
 string toString(Guess g) { return guessToString(g); }
 
-// todo build lookup table at compile time
+// build lookup table at compile time?  Nah, this is fast enough...
 int responseToPartitionIndex(Response r) {
 	switch(r[0]) {
 		case 0: return r[1];

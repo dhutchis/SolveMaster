@@ -1,5 +1,5 @@
 -od"bin"
--of"bin\SolveMaster2.exe"
+-of"bin\SolveMaster.exe"
 
 -I""
 
@@ -11,4 +11,4 @@
 
 
 -release -O -inline -noboundscheck
--version=0
+-version=1
