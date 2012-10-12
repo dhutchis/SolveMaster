@@ -4,7 +4,6 @@
 */
 module Master.MasterSpecific;
 import std.stdio;
-import std.c.process;
 import std.array;
 import std.conv;
 //import std.string;

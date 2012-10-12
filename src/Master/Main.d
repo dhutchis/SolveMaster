@@ -76,7 +76,6 @@ body {
 
 
 void main(string[] args) {
-//	writeln(AllGuesses);
 	string targetString = "";
 	string repGuessFileString = "";
 	int depth = -1;
@@ -99,22 +98,6 @@ void main(string[] args) {
 		//"interactive|i", &interactive
 	);
 	
-	//computeAvgGameLength = true;
-	//repGuessFileString = "../repGuess.txt";
-//	repGuessFileString="";
-	
-//	repGuessFileString = "repGuess.txt";
-//	File f2 = File(repGuessFileString, "r");
-////	writeln("line: ",f2.readln());
-//	assert(std.string.stripRight(f2.readln()) == "2");
-//	f2.rewind();
-//	scope(exit) f2.close();
-//	GuessChain gc = getAllRepGuessesFromFile(f2);
-//	writeln(gc);
-//	return;
-	
-//	writeln("ARGS: ",args);
-//	print_usage_die(args, "repGuessFile:",repGuessFileString,"; target:",targetString,"; depth:",depth,"; genRepGuess:",genRepGuess);
 	if (help || args.length > 1) print_usage_die(args,"");
 	
 	if (genRepGuess) {
@@ -214,7 +197,6 @@ double computeAverageGameLength(in GuessChain gc, in int maxDepthFile) {
 }
 
 
-
 	// This is to test the reading of the repGuess file.
 //	const Guess[] gs = [[0,1,2,3],[1,2,3,5]];
 //	//writeln("HEY: ",gs ~ cast(Guess)[5,6,7,8]);
@@ -224,11 +206,16 @@ double computeAverageGameLength(in GuessChain gc, in int maxDepthFile) {
 //		writeln(guessToString(g));
 //	return;
 	
+//	repGuessFileString = "repGuess.txt";
+//	File f2 = File(repGuessFileString, "r");
+//  //	writeln("line: ",f2.readln());
+//	assert(std.string.stripRight(f2.readln()) == "2");
+//	f2.rewind();
+//	scope(exit) f2.close();
+//	GuessChain gc = getAllRepGuessesFromFile(f2);
+//	writeln(gc);
+//	return;
 	
-	
-	//playGame(new MasterGame());
-	
-//	import Master.MasterUtil;
 //	enum Guess[] nopast = { Guess[] g; return g;}(); 
 //	 assert (computeRepresentativeGuesses(nopast) == [[0,1,2,3]]);
 //	enum Guess[] afterfirst = [[0,1,2,3]];
@@ -239,7 +226,7 @@ double computeAverageGameLength(in GuessChain gc, in int maxDepthFile) {
 //    reprGuess3rd.length = reprGuess2nd.length;
 //    uint total_rg = 0;
 //    foreach (i, g; reprGuess2nd) {
-//if (i == 0) break;
+//		if (i == 0) break;
 //    	dnoln(afterfirst~g);
 //    	reprGuess3rd[i] = computeRepresentativeGuesses(afterfirst~g);
 //    	total_rg += reprGuess3rd[i].length;

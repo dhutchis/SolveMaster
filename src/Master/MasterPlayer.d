@@ -17,7 +17,7 @@ import Master.MasterSpecific;
 
 //version = 0;
 
-//Guess[] getRepGuessesFromFile(File f, in int depthRepGuess)
+
 Guess[] getRepGuessesFromFile(File f, in GuessHistory gh)
 in { 
 	assert( gh.length > 0 ); // we want more than just the first turn guess
@@ -92,6 +92,7 @@ void findGuessInFile(File f, in Guess guess, in int depth, in GuessHistory gh) {
 //		alias staticArrayNDeep!(B[Size],Size,Depth-1) staticArrayNDeep;
 //} staticArrayNDeep!(Guess,14,Depth)
 
+/// data structure to hold representative guesses N turns deep
 class GuessChain {
 	GuessChain[Guess] map;
 	
@@ -125,15 +126,6 @@ body {
 }
 
 GuessChain recurseReadRepGuessFromFile(File f, ref char[] currentline, ref int currentDepth) {
-//	assert ( {
-//		int chkd = 0;
-//		while(firstline.front == ' ') {
-//			chkd++;
-//			line.popFront();
-//		}
-//		return chkd;
-//	}() == currentDepth, "bad current depth");
-
 	int myDepth = currentDepth;
 	GuessChain gc = new GuessChain();
 	
@@ -151,18 +143,13 @@ GuessChain recurseReadRepGuessFromFile(File f, ref char[] currentline, ref int c
 		foreach (i, c; currentline) {
 			if (c == ' ')
 				currentDepth++;
-			else {
-				//guessIdx = i;
-				break;
-			}
+			else break;
 		}
 		
 		if (currentDepth > myDepth) {
 			assert(currentDepth == myDepth+1, "bad file format");
 			gc.map[g] = recurseReadRepGuessFromFile(f, currentline, currentDepth);
 		}
-		
-		
 	} while (currentDepth >= myDepth);
 	
 	return gc;
@@ -215,10 +202,6 @@ uint playGame(MasterGame mg, in GuessChain gc, in int maxDepthRepGuess) {
 		pastResponses ~= mg.makeGuess(bestGuess);
 		
 		// update consisT according to response
-//		Guess[] newConsisT;
-//		foreach (g; consisT)
-//			if (testConsistent(g, pastGuesses[0], pastResponses[0]))
-//				newConsisT ~= g;
 		consisT = psBest[responseToPartitionIndex(pastResponses[$-1])];
 		
 		// show status
@@ -238,7 +221,7 @@ Guess findBestGuess(in GuessHistory pastGuesses, in ResponseHistory pastResponse
 		return consisT[0];
 	}
 	
-	/*	We need to choose the guess that maximizes the information we gain after receiving feedback from our guess, ultimately minimizing the average number of guesses before winning.
+	/**	We need to choose the guess that maximizes the information we gain after receiving feedback from our guess, ultimately minimizing the average number of guesses before winning.
 		First we need to decide what guesses we will consider.  Two strategies:
 		1. Use precomputed representative guesses.  They should be precomputed as computing them right now at run time is expensive.  This effectively prunes away all guesses that are
 			guranteed to provide the same information as a guess in the representative set, saving quite a few CPU cycles.
@@ -441,9 +424,8 @@ void computeEntropy(in double n, in PartitionSet ps, out double entropy) {
 //		nonemptyParts++;
 	}
 //	writeln("\tentropy log(",n,")-(1/",n,")*",entropy," = ",log(n)," - ",(1.0/n)*entropy," = ",log(n) - (1.0/n)*entropy);
-	//version(1)
-		entropy = log(n) + (1.0/n)*entropy; // speedup: don't need to calculate actual entropy; instead maximize the summed negative entropy (so more positive is preferred)
-	
+	entropy = log(n) + (1.0/n)*entropy; 
+	// speedup (not implemented): don't need to calculate actual entropy; instead maximize the summed negative entropy (so more positive is preferred)
 }
 
 /// return true if we should swap the current guess with the best guess (so that rg is the new best guess)

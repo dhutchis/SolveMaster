@@ -1,7 +1,6 @@
 module Master.MasterUtil;
 // see if we can get static array functionality via array-wise operators []
 import std.stdio;
-import std.c.process;
 import std.array;
 import std.conv;
 //import std.string;
@@ -17,23 +16,13 @@ enum Digit DIGIT_MIN = 0, DIGIT_MAX = 9, NUM_DIGIT = DIGIT_MAX-DIGIT_MIN+1;
 enum Digit[] ALL_DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 alias byte Place; // 0-3
 enum Place PLACE_MIN = 0, PLACE_MAX = 3, NUM_PLACE = PLACE_MAX-PLACE_MIN+1;
-/*template Place() {
-	alias byte Place;
-	enum MIN = 0;
-	enum MAX = 3;
-}*/
 alias Digit[4] Guess;
 alias Digit[NUM_DIGIT] Substitution;
 alias Place[NUM_PLACE] Permutation;
 alias byte[2] Response;
-//alias Tuple!(Guess,Response) GuessResponse;
-//alias GuessResponse[] History;
 alias Guess[] GuessHistory;
 alias Response[] ResponseHistory;
-// alias function for transformation
 alias Guess[][14] PartitionSet;
-
-string toString(Guess g) { return guessToString(g); }
 
 // build lookup table at compile time?  Nah, this is fast enough...
 int responseToPartitionIndex(Response r) {
@@ -58,44 +47,6 @@ string responseToString(Response r) {
 }
 
 
-//auto findTransform(in Guess p, in Guess q, in Response[Guess] history)
-//{
-//	// iterate over all feasible transformations that could take p to q
-//	// then check whether a feasible transformation respects the history
-//	// return the first one to pass
-//	Digit[Digit] substitution;
-//	Place[Place] permutation;
-//	bool[Place] available; // the places in q that are available for assignment
-//	foreach (Place pl; PLACE_MIN..PLACE_MAX+1)
-//		available[pl] = true;
-//	
-//	foreach (Digit start; p) {
-//		foreach (Place pl, ref bool avail; available) {
-//			if (!avail)
-//				continue;
-//			avail = false;
-//			substitution[start] = q[pl];
-//		}
-//		foreach (Digit end; q) {
-//			//substitution
-//		}
-//	}
-//	
-//	//enum allSubstitutions = GenerateSubstitutions!(PLACE_MAX+1);
-//	
-//	
-//} 
-
-// create function to return a map of all the possible mappings ret[0] is the first mapping 
-//  ret[0][0] is the mapping of the first character in first mapping
-// later create function to return theses as a lazy range
-/*auto GenerateSubstitutions(A)(A maxp)
-if (isIntegral!A && isIntegral!B)
-{
-	int[factorial(maxp)][maxp] ret;
-	
-}*/
-
 // returns same type as the typeof n
 template factorial(alias n)
 if (isIntegral!(typeof(n)) && n >= 0) {
@@ -105,6 +56,7 @@ if (isIntegral!(typeof(n)) && n >= 0) {
 		enum factorial = n*factorial!(n-1);
 }
 
+// These are shortcut functions for printing debug messages.
 //enum DEBUG_MSG = true;
 //void dnoln(A...)(A a)
 //if (is(typeof({write(a);}()))) {
@@ -121,11 +73,17 @@ if (isIntegral!(typeof(n)) && n >= 0) {
 //	}
 //}
 
+//enum bla = (bool b){return (b == false);};
+
+// generates permuations of the items in the given static array
+// ex. 123 -> 123, 132, 213, 231, 312, 321
+// There are L! permutations.
 template permute(A : T[L], T, size_t L) {
 	auto pure permute(in A arr) {
 		static assert (L > 0, "no 0-length static arrays allowed");
 		bool[L] used;
-		fill(used, false);
+//		assert(allPassFun!(bla)(used)); // used is initialized to false
+//		fill(used, false);
 		A form = void;
 		A[factorial!L] allperms;
 		size_t permsCtr = 0;
@@ -177,7 +135,7 @@ template staticArrayFirstType(T : U[N], U, size_t N)
 	alias U staticArrayFirstType;
 }
 
-
+// deeply fills a static multidimensional array with a value
 pure @safe void fill(T, size_t L, B = staticArrayBaseType!(T[L]))
 					(ref T[L] arr, in B val)  {
 	//writeln("T:",typeid(T),"; L:",typeid(L),"; B:",typeid(B),"; arr:",typeid(arr),"; val:",typeid(val),"; sa:",isStaticArray!T,"; arr=",arr,"; val=",val);
@@ -271,6 +229,7 @@ unittest {
 //	writeln(t6res);
 }
 
+/// more generic version; all members of arr must have f(arr)==true, f is the specified op
 pure @safe bool allPassFun(alias op, T, size_t L, B = staticArrayBaseType!(T[L]))
 						(in T[L] arr) 
 						if (is(typeof(op(B)) == bool)) {
@@ -353,6 +312,7 @@ unittest {
 //	writeln(findTransform(p,q,past));
 }
 
+/// Used to consider runtime response information when computing representative guesses 
 GuessHistory[] groupPastGuessesBySameResponse(in GuessHistory pastGuesses, in ResponseHistory pastResponses) 
 in { assert(pastGuesses.length == pastResponses.length); } 
 body {
@@ -374,7 +334,6 @@ body {
 			}
 		}
 		groups ~= group;
-		
 	}
 	return groups;
 }
@@ -429,15 +388,15 @@ unittest {
 	uint count = 0;
 	foreach (q; AllGuessesGenerator()) {
 		if (!findTransform(p,q,gh1) && findTransform(p,q,gg)) {
-			d(q);
+//			d(q);
 			count++;
 		}
 	}
-	d(count);
+//	d(count);
 }
 
 
-// takes 2 Guesses with the same digits, possible in a rearranged order, returns the permutation map to go from one to the other
+/// takes 2 Guesses with the same digits, possibly in a rearranged order, returns the permutation map to go from one to the other
 Permutation getPermMap(in Guess from, in Guess to) {
 	Permutation pm;
 	foreach (i, Digit din; from) {
@@ -462,14 +421,10 @@ unittest {
 	static assert(applyPermutation(g,perm) == [6,7,9,8]);
 }
 
+/// Stream generator of valid substitutions. (Generation can pause between substitution yields.)
 struct ValidSubstitutionStream
 {
-private:
-//    alias T[L] A;
-//    const A p;
-//    const A q;
-//    const A[] pastGuesses;
-    
+private:    
     bool[NUM_DIGIT][NUM_DIGIT] validSubst; //validSubst[2][4]==true means 2->4 is a valid mapping
 	Digit[NUM_DIGIT] substMap; // the actual mapping; substMap[2]==4 means 2 maps to 4
 	bool[NUM_DIGIT] used; // signifies whether we already used the number in a previous substitution
@@ -550,6 +505,8 @@ private:
     }
 
 public:
+	@disable this(); // don't use default constructor
+
     this(in Guess p, in Guess q, in Guess[] pastGuesses) {
         doInit(p,q,pastGuesses);
         // prime: find first substitution
@@ -573,9 +530,6 @@ public:
 
     @property typeof(this) save() {
         auto ret = this;
-//        assert(ret.p == p);
-//        assert(ret.q == q);
-//        assert(ret.pastGuesses == pastGuesses);
 	    ret.validSubst = validSubst.dup;
 	    ret.substMap = substMap.dup; 
 	    ret.used = used.dup;
@@ -616,7 +570,7 @@ unittest {
 	static assert(applySubstitution(p,subst) == [0, 1, 3, 5]);
 }
 
-/*
+/* Recursive version - much simpler but not a stream
 auto findSubstitution(in Guess p, in Guess q, in Guess[] pastGuesses)
 {
 	bool[NUM_DIGIT][NUM_DIGIT] validSubst; //validSubst[2][4]==true means 2->4 is a valid mapping
@@ -770,7 +724,7 @@ private:
 		Digit p = cast(Digit)(start+1);
 		while (p <= DIGIT_MAX && used[p])
 			p++;
-		return p ;//> DIGIT_MAX ? getFirstAvailDigPast(DIGIT_MIN-1) : p;
+		return p; //> DIGIT_MAX ? getFirstAvailDigPast(DIGIT_MIN-1) : p;
 	}
 
 public:
@@ -889,8 +843,7 @@ inout Guess[] computeRepresentativeGuessesNarrowing(Range)(in GuessHistory past,
 	return reprGuesses[past.length .. $];
 }
 unittest {
-	/// Writes the reduction in representative guess size after using additional response information
-	/// Todo: Output this for many different cominations
+	// Writes the reduction in representative guess size after using additional response information
 //	GuessHistory gh = [[0,1,2,3],[1,2,3,4]];
 //	ResponseHistory rh = [[0,1],[0,1]];
 //	Guess[] rg_noinfo = computeRepresentativeGuesses(gh);
@@ -931,17 +884,6 @@ bool testConsistent(Guess g, Guess x, Response r) {
 	return doCompare(x,g) == r;
 }
 
-//void main() {
-////	Guess[] past = [[0,1,2,3],[0, 1, 2, 4]];
-////	writeln("past: ",past);
-////	auto reprGuesses = computeRepresentativeGuesses(past);
-////	writeln(reprGuesses.length,":");
-////	foreach(i, rg; reprGuesses)
-////		write(rg,",");
-//	
-//	
-//	
-//}
 
 /// Generated at compile time!
 enum Response[14] AllResponses = [[0,0],[0,1],[0,2],[0,3],[0,4],[1,0],[1,1],[1,2],[1,3],[2,0],[2,1],[2,2],[3,0],[4,0]];
