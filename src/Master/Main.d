@@ -164,6 +164,7 @@ double computeAverageGameLength(in GuessChain gc, in int maxDepthFile) {
 	ulong[14] categorySum;
 	uint[14] categoryCount;
 	int i = 0;
+	uint[uint] numTurnFreq; // maps # of turns -> # of games that took that many turns
 //	auto taskPool = new TaskPool();
 //	foreach(g; parallel(AllGuessesGenerator(), 20)) {
 	foreach(g; AllGuesses) {
@@ -175,8 +176,10 @@ double computeAverageGameLength(in GuessChain gc, in int maxDepthFile) {
 		auto idx = responseToPartitionIndex(doCompare(g,[0,1,2,3]));
 		categorySum[ idx ] += l;
 		categoryCount[idx]++;
+		numTurnFreq[l] = numTurnFreq.get(l, 0u)+1;
+		if (l > 7) savedstdout.writeln("Guess ",guessToString(g), "took ",l," turns");
 		if (i % (cast(int)(5040*0.1)) == 0)
-			{savedstdout.write("\nOn guess ",i," / 5040. Computing..."); savedstdout.flush();}
+			{savedstdout.write("\nOn guess ",i," / 5040. Computing... "); savedstdout.flush();}
 //		f2.close();
 	}
 //	int i = 5040;
@@ -193,6 +196,11 @@ double computeAverageGameLength(in GuessChain gc, in int maxDepthFile) {
 	}
 	writeln("Total count of guesses: ",grandCount);
 	writeln("Overall average game length: ",cast(double)(grandSum)/grandCount);
+	writeln("Turns\t# of Games taking that many turns");
+	auto numTurnsArr = numTurnFreq.keys;
+	numTurnsArr.sort;
+	foreach(numTurns; numTurnsArr)
+		writeln(numTurns,'\t',numTurnFreq[numTurns]);
 	return cast(double)(grandSum)/grandCount; 
 }
 
